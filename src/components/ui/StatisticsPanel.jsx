@@ -1,15 +1,17 @@
 // src/components/ui/StatisticsPanel.jsx
 import React, { useState, useEffect } from 'react';
 import Icon from '../AppIcon';
+import TopVibesSection from './TopVibesSection';
 
-const StatisticsPanel = ({ activeChannel, messageCount }) => {
+const StatisticsPanel = ({ activeChannel, messageCount, allMessages }) => {
   const [stats, setStats] = useState({
     totalMessages: 0,
     messagesPerMinute: 0,
     userSessionTime: '00:00'
   });
 
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [vibes, setVibes] = useState({ lastMinute: null, last10Minutes: null, lastHour: null });
   const [sessionStartTime] = useState(Date.now());
 
   // Update user session time and message stats
@@ -30,10 +32,24 @@ const StatisticsPanel = ({ activeChannel, messageCount }) => {
         messagesPerMinute: messagesPerMin,
         userSessionTime: formattedTime
       });
+      if (activeChannel && allMessages) {
+        const now = Date.now();
+        const channelMessages = allMessages.filter(m => m.channel === activeChannel.id);
+        const getTop = (ms) => {
+          const filtered = channelMessages.filter(m => now - new Date(m.timestamp).getTime() <= ms);
+          if (!filtered.length) return null;
+          return filtered.sort((a, b) => b.reactions.thumbsUp - a.reactions.thumbsUp)[0];
+        };
+        setVibes({
+          lastMinute: getTop(60 * 1000),
+          last10Minutes: getTop(10 * 60 * 1000),
+          lastHour: getTop(60 * 60 * 1000)
+        });
+      }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [messageCount, sessionStartTime]);
+  }, [messageCount, sessionStartTime, activeChannel, allMessages]);
 
   const StatItem = ({ icon, label, value, color = 'text-text-secondary' }) => (
     <div className="flex items-center justify-between py-2">
@@ -52,7 +68,7 @@ const StatisticsPanel = ({ activeChannel, messageCount }) => {
 
   return (
     <div className="fixed top-6 right-6 z-interface">
-      <div className="glass-panel p-4 w-64 fade-in vibey-bg glow-border">
+      <div className="glass-panel p-4 w-48 fade-in vibey-bg glow-border">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Icon name="BarChart3" size={18} className="text-primary" />
@@ -119,6 +135,8 @@ const StatisticsPanel = ({ activeChannel, messageCount }) => {
                 </div>
               </div>
             </div>
+
+            <TopVibesSection vibes={vibes} />
           </div>
         )}
       </div>
