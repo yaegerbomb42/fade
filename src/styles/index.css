@@ -322,6 +322,12 @@ body {
   position: relative;
 }
 
+.logo-small {
+  height: 60vh;
+  justify-content: flex-start;
+  padding-top: 2rem;
+}
+
 .c {
   display: flex;
   align-items: center;
