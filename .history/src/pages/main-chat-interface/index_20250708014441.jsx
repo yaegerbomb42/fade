@@ -13,6 +13,7 @@ import MessageBubble from './components/MessageBubble';
 import TypingIndicator from './components/TypingIndicator';
 
 const MainChatInterface = () => {
+  // TODO: Replace with your actual Firebase configuration
   const firebaseConfig = {
     apiKey: "AIzaSyAX1yMBRCUxfsArQWG5XzN4mx-sk4hgqu0",
     authDomain: "vibrant-bubble-chat.firebaseapp.com",
@@ -217,13 +218,12 @@ const MainChatInterface = () => {
       <AnimatedBackground />
 
       {/* Main Logo - centered */}
-      {/* Main Logo - centered and smaller */}
-      <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-interface w-12 h-12">
+      <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-interface w-16 h-16">
         <FadeLogo />
       </div>
 
-      {/* Channel Selector - positioned top-left */}
-      <div className="fixed top-4 left-4 z-interface">
+      {/* Channel Selector - properly positioned top-left */}
+      <div className="fixed top-4 left-4 z-interface w-64">
         <div className="flex items-center gap-2">
           <ChannelSelector
             onChannelChange={handleChannelChange}
@@ -278,7 +278,7 @@ const MainChatInterface = () => {
       {/* Welcome Message */}
       {showWelcome && !activeChannel && (
         <div
-          className="fixed inset-0 flex items-center justify-center z-interface"
+          className="fixed inset-0 flex items-center justify-center z-interface bg-black/40 backdrop-blur-md"
           onClick={() => setShowWelcome(false)}
         >
           <div className="glass-panel p-8 text-center max-w-md fade-in vibey-bg glow-border pointer-events-auto">
@@ -287,7 +287,7 @@ const MainChatInterface = () => {
               Welcome to FADE
             </h2>
             <p className="text-xs text-text-secondary">
-              Tap to enter.
+              Chats appear for a moment and then drift away forever. Tap to enter.
             </p>
           </div>
         </div>
