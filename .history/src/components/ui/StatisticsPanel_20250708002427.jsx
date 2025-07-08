@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Icon from '../AppIcon';
 import TopVibesSection from './TopVibesSection';
 
-const StatisticsPanel = ({ activeChannel, messageCount, allMessages, reactionStats = { totalLikes: 0, totalDislikes: 0, topMessages: [] } }) => {
+const StatisticsPanel = ({ activeChannel, messageCount, allMessages }) => {
   const [stats, setStats] = useState({
     totalMessages: 0,
     messagesPerMinute: 0,
@@ -101,42 +101,26 @@ const StatisticsPanel = ({ activeChannel, messageCount, allMessages, reactionSta
               </div>
             )}
 
-            <div className="space-y-2">
-              <StatItem
-                icon="MessageSquare"
-                label="Total Messages"
-                value={stats.totalMessages.toLocaleString()}
-                color="text-primary"
-              />
+            <StatItem
+              icon="MessageSquare"
+              label="Total Messages"
+              value={stats.totalMessages.toLocaleString()}
+              color="text-primary"
+            />
 
-              <StatItem
-                icon="ThumbsUp"
-                label="Total Likes"
-                value={reactionStats.totalLikes}
-                color="text-success"
-              />
+            <StatItem
+              icon="Activity"
+              label="Messages/Min"
+              value={stats.messagesPerMinute}
+              color="text-accent"
+            />
 
-              <StatItem
-                icon="ThumbsDown"
-                label="Total Dislikes"
-                value={reactionStats.totalDislikes}
-                color="text-error"
-              />
-
-              <StatItem
-                icon="Activity"
-                label="Messages/Min"
-                value={stats.messagesPerMinute}
-                color="text-accent"
-              />
-
-              <StatItem
-                icon="Clock"
-                label="Your Session Time"
-                value={stats.userSessionTime}
-                color="text-success"
-              />
-            </div>
+            <StatItem
+              icon="Clock"
+              label="Your Session Time"
+              value={stats.userSessionTime}
+              color="text-success"
+            />
 
             <div className="mt-4 pt-3 border-t border-glass-border">
               <div className="flex items-center justify-between">
@@ -152,7 +136,7 @@ const StatisticsPanel = ({ activeChannel, messageCount, allMessages, reactionSta
               </div>
             </div>
 
-            <TopVibesSection vibes={reactionStats.topMessages} />
+            <TopVibesSection vibes={vibes} />
           </div>
         )}
       </div>

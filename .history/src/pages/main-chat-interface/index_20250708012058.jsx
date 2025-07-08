@@ -34,54 +34,6 @@ const MainChatInterface = () => {
   const [activityLevel, setActivityLevel] = useState(1);
   const activityTimeWindow = 30 * 1000; // 30 seconds
 
-  // Process messages from queue
-  useEffect(() => {
-    const processQueue = () => {
-      if (messageQueue.length > 0) {
-        const [nextMessage, ...remainingMessages] = messageQueue;
-        
-        // Check if message already exists
-        setMessages(prev => {
-          const exists = prev.some(msg => msg.id === nextMessage.id);
-          return exists ? prev : [...prev, nextMessage];
-        });
-
-        // Update activity level based on message rate
-        setMessageTimestamps(prev => [...prev, Date.now()]);
-
-        // Remove processed message from queue
-        setMessageQueue(remainingMessages);
-      }
-    };
-
-    // Adjust processing interval based on queue size
-    const interval = setInterval(processQueue, Math.max(100, 1000 - (messageQueue.length * 50)));
-    return () => clearInterval(interval);
-  }, [messageQueue]);
-
-  // Update activity level calculation
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const recentTimestamps = messageTimestamps.filter(timestamp => now - timestamp < activityTimeWindow);
-      const messageRate = recentTimestamps.length;
-      // Map message rate to activity level (1-5)
-      const newActivityLevel = Math.min(Math.ceil(messageRate / 2), 5);
-      setActivityLevel(newActivityLevel);
-      
-      // Update message speeds based on activity level
-      const minDuration = 2; // Minimum duration in seconds (high activity)
-      const maxDuration = 15; // Maximum duration in seconds (low activity)
-      const duration = maxDuration - ((newActivityLevel - 1) / 4) * (maxDuration - minDuration);
-      setMessages(prev => prev.map(msg => ({
-        ...msg,
-        animationDuration: `${duration}s`
-      })));
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [messageTimestamps, activityTimeWindow]);
-
   // Initialize Firebase (only once)
   // Initialize Firebase app
   const [firebaseApp, setFirebaseApp] = useState(null);
@@ -116,6 +68,54 @@ const MainChatInterface = () => {
         // Add new message to queue
         setMessageQueue(prev => [...prev, { ...newMessage, id: snapshot.key }]);
       });
+
+      // Process messages from queue
+      useEffect(() => {
+        const processQueue = () => {
+          if (messageQueue.length > 0) {
+            const [nextMessage, ...remainingMessages] = messageQueue;
+            
+            // Check if message already exists
+            setMessages(prev => {
+              const exists = prev.some(msg => msg.id === nextMessage.id);
+              return exists ? prev : [...prev, nextMessage];
+            });
+
+            // Update activity level based on message rate
+            setMessageTimestamps(prev => [...prev, Date.now()]);
+
+            // Remove processed message from queue
+            setMessageQueue(remainingMessages);
+          }
+        };
+
+        // Adjust processing interval based on queue size
+        const interval = setInterval(processQueue, Math.max(100, 1000 - (messageQueue.length * 50)));
+        return () => clearInterval(interval);
+      }, [messageQueue]);
+
+      // Update activity level calculation
+      useEffect(() => {
+        const interval = setInterval(() => {
+          const now = Date.now();
+          const recentTimestamps = messageTimestamps.filter(timestamp => now - timestamp < activityTimeWindow);
+          const messageRate = recentTimestamps.length;
+          // Map message rate to activity level (1-5)
+          const newActivityLevel = Math.min(Math.ceil(messageRate / 2), 5);
+          setActivityLevel(newActivityLevel);
+          
+          // Update message speeds based on activity level
+          const minDuration = 2; // Minimum duration in seconds (high activity)
+          const maxDuration = 15; // Maximum duration in seconds (low activity)
+          const duration = maxDuration - ((newActivityLevel - 1) / 4) * (maxDuration - minDuration);
+          setMessages(prev => prev.map(msg => ({
+            ...msg,
+            animationDuration: `${duration}s`
+          })));
+        }, 1000);
+
+        return () => clearInterval(interval);
+      }, [messageTimestamps, activityTimeWindow]);
 
     return () => {
       off(messagesRef, 'child_added', listener);

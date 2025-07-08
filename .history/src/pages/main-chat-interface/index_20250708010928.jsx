@@ -25,7 +25,6 @@ const MainChatInterface = () => {
   };
   const [messages, setMessages] = useState([]);
   const [allMessages, setAllMessages] = useState([]);
-  const [messageQueue, setMessageQueue] = useState([]);
   const [activeChannel, setActiveChannel] = useState(null);
   const [isTyping, setIsTyping] = useState(false);
   const [showTypingIndicator, setShowTypingIndicator] = useState(false);
@@ -33,54 +32,6 @@ const MainChatInterface = () => {
   const [messageTimestamps, setMessageTimestamps] = useState([]);
   const [activityLevel, setActivityLevel] = useState(1);
   const activityTimeWindow = 30 * 1000; // 30 seconds
-
-  // Process messages from queue
-  useEffect(() => {
-    const processQueue = () => {
-      if (messageQueue.length > 0) {
-        const [nextMessage, ...remainingMessages] = messageQueue;
-        
-        // Check if message already exists
-        setMessages(prev => {
-          const exists = prev.some(msg => msg.id === nextMessage.id);
-          return exists ? prev : [...prev, nextMessage];
-        });
-
-        // Update activity level based on message rate
-        setMessageTimestamps(prev => [...prev, Date.now()]);
-
-        // Remove processed message from queue
-        setMessageQueue(remainingMessages);
-      }
-    };
-
-    // Adjust processing interval based on queue size
-    const interval = setInterval(processQueue, Math.max(100, 1000 - (messageQueue.length * 50)));
-    return () => clearInterval(interval);
-  }, [messageQueue]);
-
-  // Update activity level calculation
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const recentTimestamps = messageTimestamps.filter(timestamp => now - timestamp < activityTimeWindow);
-      const messageRate = recentTimestamps.length;
-      // Map message rate to activity level (1-5)
-      const newActivityLevel = Math.min(Math.ceil(messageRate / 2), 5);
-      setActivityLevel(newActivityLevel);
-      
-      // Update message speeds based on activity level
-      const minDuration = 2; // Minimum duration in seconds (high activity)
-      const maxDuration = 15; // Maximum duration in seconds (low activity)
-      const duration = maxDuration - ((newActivityLevel - 1) / 4) * (maxDuration - minDuration);
-      setMessages(prev => prev.map(msg => ({
-        ...msg,
-        animationDuration: `${duration}s`
-      })));
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [messageTimestamps, activityTimeWindow]);
 
   // Initialize Firebase (only once)
   // Initialize Firebase app
@@ -105,17 +56,16 @@ const MainChatInterface = () => {
     const messagesRef = ref(database, `channels/${activeChannel.id}/messages`);
     setMessages([]);
 
-      const listener = onChildAdded(messagesRef, (snapshot) => {
-        const newMessage = snapshot.val();
+    const listener = onChildAdded(messagesRef, (snapshot) => {
+      const newMessage = snapshot.val();
 
-        if (!firebaseApp) {
-          console.error("Firebase not initialized yet!");
-          return;
-        }
+      if (!firebaseApp) {
+        console.error("Firebase not initialized yet!");
+        return;
+      }
 
-        // Add new message to queue
-        setMessageQueue(prev => [...prev, { ...newMessage, id: snapshot.key }]);
-      });
+      setMessages(prev => [...prev, { ...newMessage, id: snapshot.key }]);
+    });
 
     return () => {
       off(messagesRef, 'child_added', listener);
@@ -146,39 +96,19 @@ const MainChatInterface = () => {
     // setAllMessages(prev => [...prev, newMessage]); // Consider if allMessages needs to be channel-specific
   }, [activeChannel, database]); // Rerun when activeChannel or database changes
 
-  const [reactionStats, setReactionStats] = useState({
-    totalLikes: 0,
-    totalDislikes: 0,
-    topMessages: []
-  });
-
   const handleReaction = useCallback((messageId, reactionType) => {
     setMessages(prev => prev.map(msg => {
       if (msg.id === messageId) {
-        const newReactions = {
-          ...msg.reactions,
-          [reactionType]: msg.reactions[reactionType] + 1
-        };
-        
-        // Update reaction stats
-        setReactionStats(prevStats => ({
-          totalLikes: prevStats.totalLikes + (reactionType === 'thumbsUp' ? 1 : 0),
-          totalDislikes: prevStats.totalDislikes + (reactionType === 'thumbsDown' ? 1 : 0),
-          topMessages: [
-            ...prevStats.topMessages.filter(m => m.id !== messageId),
-            { ...msg, reactions: newReactions }
-          ].sort((a, b) => (b.reactions.thumbsUp - b.reactions.thumbsDown) - (a.reactions.thumbsUp - a.reactions.thumbsDown))
-          .slice(0, 5)
-        }));
-
         return {
           ...msg,
-          reactions: newReactions
+          reactions: {
+            ...msg.reactions,
+            [reactionType]: msg.reactions[reactionType] + 1
+          }
         };
       }
       return msg;
     }));
-
     setAllMessages(prev => prev.map(msg => {
       if (msg.id === messageId) {
         return {
@@ -210,13 +140,13 @@ const MainChatInterface = () => {
       {/* Animated Background */}
       <AnimatedBackground />
 
-      {/* Main Logo - centered */}
-      <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-interface w-16 h-16">
+      {/* Main Logo - reduced size */}
+      <div className="fixed top-4 right-4 z-interface w-16 h-16">
         <FadeLogo />
       </div>
 
-      {/* Channel Selector - properly positioned top-left */}
-      <div className="fixed top-4 left-4 z-interface w-64">
+      {/* Channel Selector - positioned top-left with minimize option */}
+      <div className="fixed top-4 left-4 z-interface">
         <div className="flex items-center gap-2">
           <ChannelSelector
             onChannelChange={handleChannelChange}

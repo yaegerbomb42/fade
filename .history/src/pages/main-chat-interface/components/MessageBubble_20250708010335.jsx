@@ -84,19 +84,19 @@ const MessageBubble = ({ message, index, onReaction, activityLevel = 1 }) => {
       style={{
         top: `${position.top}%`,
         left: `${position.left}%`,
-        transition: `left ${animationDuration} linear, opacity 0.3s ease, transform 0.3s ease`,
-        willChange: 'left, opacity, transform'
+        transitionDuration: animationDuration,
+        transitionProperty: 'left, opacity, transform',
       }}
     >
       <div className={`glass-panel p-4 bg-gradient-to-br ${bubbleGradient} border-glass-border/50 hover:border-glass-highlight transition-all duration-300 group relative`}>
-        {/* Reaction areas with larger click targets and visual feedback */}
+        {/* Reaction areas - left half for thumbs down, right half for thumbs up */}
         <div 
-          className="absolute inset-0 w-1/2 h-full cursor-pointer hover:bg-glass-highlight/20 transition-colors"
+          className="reaction-left" 
           onClick={handleThumbsDown}
           title="Dislike"
         ></div>
         <div 
-          className="absolute inset-0 left-1/2 w-1/2 h-full cursor-pointer hover:bg-glass-highlight/20 transition-colors"
+          className="reaction-right" 
           onClick={handleThumbsUp}
           title="Like"
         ></div>
