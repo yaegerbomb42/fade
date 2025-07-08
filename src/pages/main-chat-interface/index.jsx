@@ -46,8 +46,9 @@ const MainChatInterface = () => {
 
   // Effect for handling Firebase message listeners based on activeChannel
   useEffect(() => {
-    if (!activeChannel || !activeChannel.id || !database) { // Check for activeChannel, activeChannel.id, and database
-      setMessages([]);
+    // More robust check: ensure database exists, activeChannel exists, and activeChannel.id is present.
+    if (!database || !activeChannel || typeof activeChannel.id === 'undefined') {
+      setMessages([]); // Clear messages if we can't subscribe or conditions aren't met
       return;
     }
   }, [firebaseConfig]); // Added firebaseConfig to dependency array
@@ -57,12 +58,6 @@ const MainChatInterface = () => {
 
     const listener = onChildAdded(messagesRef, (snapshot) => { // Use new onChildAdded
       const newMessage = snapshot.val();
-  // Effect for handling Firebase message listeners based on activeChannel
-  useEffect(() => {
-    if (!activeChannel || !activeChannel.id) { // Check for activeChannel and activeChannel.id
-      setMessages([]);
-      return;
-    }
 
     // Ensure Firebase is initialized
     if (!firebase.apps.length) {
