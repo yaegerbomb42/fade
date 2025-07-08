@@ -15,13 +15,13 @@ import TypingIndicator from './components/TypingIndicator';
 const MainChatInterface = () => {
   // TODO: Replace with your actual Firebase configuration
   const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_AUTH_DOMAIN",
-    databaseURL: "YOUR_DATABASE_URL",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_STORAGE_BUCKET",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    apiKey: "AIzaSyAX1yMBRCUxfsArQWG5XzN4mx-sk4hgqu0",
+    authDomain: "vibrant-bubble-chat.firebaseapp.com",
+    databaseURL: "https://vibrant-bubble-chat-default-rtdb.firebaseio.com",
+    projectId: "vibrant-bubble-chat",
+    storageBucket: "vibrant-bubble-chat.appspot.com",
+    messagingSenderId: "1084858947817",
+    appId: "1:1084858947817:web:bc63c68c7192a742713878"
   };
   const [messages, setMessages] = useState([]);
   const [allMessages, setAllMessages] = useState([]);
@@ -38,47 +38,57 @@ const MainChatInterface = () => {
     if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
     }
+  }, [firebaseConfig]); // Added firebaseConfig to dependency array
 
-    const messagesRef = firebase.database().ref('messages');
+  // Effect for handling Firebase message listeners based on activeChannel
+  useEffect(() => {
+    if (!activeChannel || !activeChannel.id) { // Check for activeChannel and activeChannel.id
+      setMessages([]);
+      return;
+    }
 
-    messagesRef.on('child_added', (snapshot) => {
+    // Ensure Firebase is initialized
+    if (!firebase.apps.length) {
+      console.error("Firebase not initialized yet!");
+      return;
+    }
+
+    const messagesRef = firebase.database().ref(`channels/${activeChannel.id}/messages`); // Use activeChannel.id
+    setMessages([]); // Clear messages when channel changes or initially loads
+
+    const listener = messagesRef.on('child_added', (snapshot) => {
       const newMessage = snapshot.val();
-      setMessages(prev => [...prev, newMessage]);
+      // It's good practice to include the message ID if you need to update/delete later
+      setMessages(prev => [...prev, { ...newMessage, id: snapshot.key }]);
     });
 
     return () => {
-      messagesRef.off('child_added');
+      messagesRef.off('child_added', listener);
     };
-  }, []);
-
-  // Initialize with empty messages when channel is selected
-  useEffect(() => {
-    if (activeChannel) {
-      setMessages([]);
-    }
-  }, [activeChannel]);
+  }, [activeChannel]); // Rerun when activeChannel changes
 
   const handleChannelChange = useCallback((channel) => {
     setActiveChannel(channel);
-    setMessages([]); // Clear messages when switching channels
+    // Messages will be cleared by the useEffect hook listening to activeChannel
     setShowWelcome(false);
   }, []);
 
   const handleSendMessage = useCallback((messageData) => {
+    if (!activeChannel || !activeChannel.id) { // Check for activeChannel and activeChannel.id
+      console.error("No active channel selected. Cannot send message.");
+      return;
+    }
+
     const newMessage = {
       ...messageData,
       reactions: { thumbsUp: 0, thumbsDown: 0 },
-      isUserMessage: true
-      timestamp: new Date().toISOString(), // Add timestamp for Firebase
+      isUserMessage: true, // Assuming this is still relevant
+      timestamp: new Date().toISOString(),
     };
 
-    // Push the new message to Firebase Realtime Database
-    firebase.database().ref('messages').push(newMessage);
-
-    // We no longer remove messages based on a timer here, as Firebase handles persistence.
-    // The MessageBubble component should handle its own fading animation.
-    // setAllMessages(prev => [...prev, newMessage]); // Keep if you need a local history
-  }, []);
+    firebase.database().ref(`channels/${activeChannel.id}/messages`).push(newMessage); // Use activeChannel.id
+    // setAllMessages(prev => [...prev, newMessage]); // Consider if allMessages needs to be channel-specific
+  }, [activeChannel]); // Rerun when activeChannel changes
 
   const handleReaction = useCallback((messageId, reactionType) => {
     setMessages(prev => prev.map(msg => {
