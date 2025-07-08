@@ -13,6 +13,7 @@
     "d3": "^7.9.0",
     "date-fns": "^4.1.0",
     "dotenv": "^16.0.1",
+    "firebase": "^11.10.0",
     "framer-motion": "^10.16.4",
     "lucide-react": "^0.484.0",
     "react": "^18.2.0",
@@ -28,6 +29,7 @@
     "tailwindcss-fluid-type": "^2.0.7"
   },
   "scripts": {
+    "dev": "vite",
     "start": "vite",
     "build": "vite build --sourcemap",
     "serve": "vite preview"

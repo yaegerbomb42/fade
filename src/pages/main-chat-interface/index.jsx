@@ -1,6 +1,8 @@
 // src/pages/main-chat-interface/index.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import Icon from 'components/AppIcon';
+import firebase from 'firebase/app';
+import 'firebase/database';
 import ChannelSelector from 'components/ui/ChannelSelector';
 import StatisticsPanel from 'components/ui/StatisticsPanel';
 import MessageInputPanel from 'components/ui/MessageInputPanel';
@@ -11,12 +13,43 @@ import MessageBubble from './components/MessageBubble';
 import TypingIndicator from './components/TypingIndicator';
 
 const MainChatInterface = () => {
+  // TODO: Replace with your actual Firebase configuration
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_AUTH_DOMAIN",
+    databaseURL: "YOUR_DATABASE_URL",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_STORAGE_BUCKET",
+    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  };
   const [messages, setMessages] = useState([]);
   const [allMessages, setAllMessages] = useState([]);
   const [activeChannel, setActiveChannel] = useState(null);
   const [isTyping, setIsTyping] = useState(false);
   const [showTypingIndicator, setShowTypingIndicator] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
+  const [messageTimestamps, setMessageTimestamps] = useState([]);
+  const [activityLevel, setActivityLevel] = useState(1);
+  const activityTimeWindow = 30 * 1000; // 30 seconds
+
+  // Initialize Firebase (only once)
+  useEffect(() => {
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+
+    const messagesRef = firebase.database().ref('messages');
+
+    messagesRef.on('child_added', (snapshot) => {
+      const newMessage = snapshot.val();
+      setMessages(prev => [...prev, newMessage]);
+    });
+
+    return () => {
+      messagesRef.off('child_added');
+    };
+  }, []);
 
   // Initialize with empty messages when channel is selected
   useEffect(() => {
@@ -36,15 +69,15 @@ const MainChatInterface = () => {
       ...messageData,
       reactions: { thumbsUp: 0, thumbsDown: 0 },
       isUserMessage: true
+      timestamp: new Date().toISOString(), // Add timestamp for Firebase
     };
 
-    setMessages(prev => [...prev, newMessage]);
-    setAllMessages(prev => [...prev, newMessage]);
+    // Push the new message to Firebase Realtime Database
+    firebase.database().ref('messages').push(newMessage);
 
-    // Remove message after a longer time
-    setTimeout(() => {
-      setMessages(prev => prev.filter(msg => msg.id !== newMessage.id));
-    }, 90000); // Extend to 90 seconds to keep messages visible longer
+    // We no longer remove messages based on a timer here, as Firebase handles persistence.
+    // The MessageBubble component should handle its own fading animation.
+    // setAllMessages(prev => [...prev, newMessage]); // Keep if you need a local history
   }, []);
 
   const handleReaction = useCallback((messageId, reactionType) => {
@@ -74,6 +107,18 @@ const MainChatInterface = () => {
     }));
   }, []);
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const recentTimestamps = messageTimestamps.filter(timestamp => now - timestamp < activityTimeWindow);
+      const messageRate = recentTimestamps.length;
+      // Map message rate to activity level (adjust this mapping as needed)
+      setActivityLevel(Math.min(Math.ceil(messageRate / 2), 5)); // Example mapping: up to 10 messages in 30s -> level 5
+    }, 1000); // Update activity level every second
+
+    return () => clearInterval(interval);
+  }, [messageTimestamps, activityTimeWindow]);
+
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
       {/* Animated Background */}
@@ -85,10 +130,12 @@ const MainChatInterface = () => {
       </div>
 
       {/* Channel Selector - positioned below the logo */}
-      <ChannelSelector 
-        onChannelChange={handleChannelChange}
-        activeChannel={activeChannel}
-      />
+      <div className="relative z-behind-interface pt-20"> {/* Added relative positioning, lower z-index, and top padding */}
+        <ChannelSelector
+          onChannelChange={handleChannelChange}
+          activeChannel={activeChannel}
+        />
+      </div>
 
       {/* Statistics Panel */}
       <StatisticsPanel
@@ -102,6 +149,7 @@ const MainChatInterface = () => {
         {messages.map((message, index) => (
           <MessageBubble
             key={message.id}
+            activityLevel={activityLevel}
             message={message}
             index={index}
             onReaction={handleReaction}

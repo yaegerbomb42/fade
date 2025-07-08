@@ -3,12 +3,13 @@ import React, { useState, useEffect } from 'react';
 import Icon from 'components/AppIcon';
 
 const MessageBubble = ({ message, index, onReaction }) => {
+  // Randomize starting and ending horizontal positions
   const [position, setPosition] = useState({
     top: Math.random() * 60 + 20, // 20% to 80% from top
-    left: 110, // Start off-screen to the right
+    left: 100 + Math.random() * 20, // Start off-screen to the right (100% to 120%)
   });
-  
   const [isVisible, setIsVisible] = useState(false);
+  const [animationDuration, setAnimationDuration] = useState('15s'); // Default duration
   const [hasReacted, setHasReacted] = useState({ thumbsUp: false, thumbsDown: false });
   const [flowSpeed, setFlowSpeed] = useState('message-flow');
 
@@ -30,6 +31,18 @@ const MessageBubble = ({ message, index, onReaction }) => {
     ? userGradients[index % userGradients.length]
     : gradients[index % gradients.length];
 
+  // Calculate animation duration based on activity level
+  // activityLevel is expected to be a number, higher means more activity
+  // Lower activityLevel means slower animation (longer duration)
+  useEffect(() => {
+    const minDuration = 10; // Minimum duration in seconds
+    const maxDuration = 30; // Maximum duration in seconds
+    // Invert activityLevel to make duration inversely proportional
+    const duration = maxDuration - (Math.min(activityLevel, 100) / 100) * (maxDuration - minDuration);
+    setAnimationDuration(`${duration}s`);
+  }, [activityLevel]);
+
+
   useEffect(() => {
     // Show bubble with pop-in animation
     const showTimer = setTimeout(() => {
@@ -37,20 +50,10 @@ const MessageBubble = ({ message, index, onReaction }) => {
     }, 100);
 
     // Determine message flow speed based on total messages
-    const messageCount = document.querySelectorAll('.message-bubble').length;
-    if (messageCount > 10) {
-      setFlowSpeed('message-flow-faster');
-    } else if (messageCount > 5) {
-      setFlowSpeed('message-flow-fast');
-    } else {
-      setFlowSpeed('message-flow');
-    }
-
-    // Start the animation from right to left
     setTimeout(() => {
       setPosition(prev => ({
         ...prev,
-        left: -20 // Move to off-screen left
+        left: -20 - Math.random() * 20 // Move to off-screen left (-20% to -40%)
       }));
     }, 50);
 
@@ -77,10 +80,11 @@ const MessageBubble = ({ message, index, onReaction }) => {
 
   return (
     <div
-      className={`absolute max-w-xs pointer-events-auto ${flowSpeed} ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'} message-bubble`}
+      className={`absolute max-w-xs pointer-events-auto ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'} message-bubble`}
       style={{
         top: `${position.top}%`,
         left: `${position.left}%`,
+        transitionDuration: animationDuration,
         transitionProperty: 'left, opacity, transform',
       }}
     >
