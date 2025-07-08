@@ -45,7 +45,13 @@ const MainChatInterface = () => {
   }, [firebaseConfig]); // firebaseConfig should be stable
 
   // Effect for handling Firebase message listeners based on activeChannel
-  // Removed unnecessary useEffect hook
+  useEffect(() => {
+    // More robust check: ensure database exists, activeChannel exists, and activeChannel.id is present.
+    if (!database || !activeChannel || typeof activeChannel.id === 'undefined') {
+      setMessages([]); // Clear messages if we can't subscribe or conditions aren't met
+      return;
+    }
+  }, [firebaseConfig]); // Added firebaseConfig to dependency array
 
   useEffect(() => {
     if (!database || !activeChannel || typeof activeChannel.id === 'undefined') {
@@ -59,7 +65,7 @@ const MainChatInterface = () => {
     const listener = onChildAdded(messagesRef, (snapshot) => {
       const newMessage = snapshot.val();
 
-      if (!firebaseApp) {
+      if (!firebase.apps.length) {
         console.error("Firebase not initialized yet!");
         return;
       }
@@ -70,7 +76,7 @@ const MainChatInterface = () => {
     return () => {
       off(messagesRef, 'child_added', listener);
     };
-  }, [activeChannel, database, firebaseApp]);
+  }, [activeChannel, database]);
 
   const handleChannelChange = useCallback((channel) => {
     setActiveChannel(channel);
@@ -145,8 +151,8 @@ const MainChatInterface = () => {
         <FadeLogo />
       </div>
 
-      {/* Channel Selector - positioned below the logo with proper spacing */}
-      <div className="fixed top-24 left-1/2 transform -translate-x-1/2 z-interface">
+      {/* Channel Selector - positioned below the logo */}
+      <div className="relative z-behind-interface pt-20"> {/* Added relative positioning, lower z-index, and top padding */}
         <ChannelSelector
           onChannelChange={handleChannelChange}
           activeChannel={activeChannel}

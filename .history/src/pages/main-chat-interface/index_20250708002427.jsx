@@ -17,7 +17,7 @@ const MainChatInterface = () => {
   const firebaseConfig = {
     apiKey: "AIzaSyAX1yMBRCUxfsArQWG5XzN4mx-sk4hgqu0",
     authDomain: "vibrant-bubble-chat.firebaseapp.com",
-    databaseURL: "https://aeueua-29dba-default-rtdb.firebaseio.com",
+    databaseURL: "https://vibrant-bubble-chat-default-rtdb.firebaseio.com",
     projectId: "vibrant-bubble-chat",
     storageBucket: "vibrant-bubble-chat.appspot.com",
     messagingSenderId: "1084858947817",
@@ -45,32 +45,33 @@ const MainChatInterface = () => {
   }, [firebaseConfig]); // firebaseConfig should be stable
 
   // Effect for handling Firebase message listeners based on activeChannel
-  // Removed unnecessary useEffect hook
-
   useEffect(() => {
+    // More robust check: ensure database exists, activeChannel exists, and activeChannel.id is present.
     if (!database || !activeChannel || typeof activeChannel.id === 'undefined') {
-      setMessages([]);
+      setMessages([]); // Clear messages if we can't subscribe or conditions aren't met
       return;
     }
+  }, [firebaseConfig]); // Added firebaseConfig to dependency array
 
-    const messagesRef = ref(database, `channels/${activeChannel.id}/messages`);
-    setMessages([]);
+    const messagesRef = ref(database, `channels/${activeChannel.id}/messages`); // Use activeChannel.id and new ref()
+    setMessages([]); // Clear messages when channel changes or initially loads
 
-    const listener = onChildAdded(messagesRef, (snapshot) => {
+    const listener = onChildAdded(messagesRef, (snapshot) => { // Use new onChildAdded
       const newMessage = snapshot.val();
 
-      if (!firebaseApp) {
-        console.error("Firebase not initialized yet!");
-        return;
-      }
+    // Ensure Firebase is initialized
+    if (!firebase.apps.length) {
+      console.error("Firebase not initialized yet!");
+      return;
+    }
 
       setMessages(prev => [...prev, { ...newMessage, id: snapshot.key }]);
     });
 
     return () => {
-      off(messagesRef, 'child_added', listener);
+      off(messagesRef, 'child_added', listener); // Use new off()
     };
-  }, [activeChannel, database, firebaseApp]);
+  }, [activeChannel, database]); // Rerun when activeChannel or database changes
 
   const handleChannelChange = useCallback((channel) => {
     setActiveChannel(channel);
@@ -145,8 +146,8 @@ const MainChatInterface = () => {
         <FadeLogo />
       </div>
 
-      {/* Channel Selector - positioned below the logo with proper spacing */}
-      <div className="fixed top-24 left-1/2 transform -translate-x-1/2 z-interface">
+      {/* Channel Selector - positioned below the logo */}
+      <div className="relative z-behind-interface pt-20"> {/* Added relative positioning, lower z-index, and top padding */}
         <ChannelSelector
           onChannelChange={handleChannelChange}
           activeChannel={activeChannel}
@@ -205,6 +206,6 @@ const MainChatInterface = () => {
       )}
     </div>
   );
-}
+};
 
 export default MainChatInterface;

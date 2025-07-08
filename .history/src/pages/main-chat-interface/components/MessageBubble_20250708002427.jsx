@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import Icon from 'components/AppIcon';
 
-const MessageBubble = ({ message, index, onReaction, activityLevel = 1 }) => {
+const MessageBubble = ({ message, index, onReaction }) => {
   // Randomize starting and ending horizontal positions
   const [position, setPosition] = useState({
     top: Math.random() * 60 + 20, // 20% to 80% from top
@@ -32,13 +32,13 @@ const MessageBubble = ({ message, index, onReaction, activityLevel = 1 }) => {
     : gradients[index % gradients.length];
 
   // Calculate animation duration based on activity level
-  // activityLevel is expected to be a number between 1 and 5
-  // Higher activityLevel means faster animation (shorter duration)
+  // activityLevel is expected to be a number, higher means more activity
+  // Lower activityLevel means slower animation (longer duration)
   useEffect(() => {
     const minDuration = 10; // Minimum duration in seconds
     const maxDuration = 30; // Maximum duration in seconds
-    // Map activityLevel (1-5) to duration range
-    const duration = maxDuration - ((activityLevel - 1) / 4) * (maxDuration - minDuration);
+    // Invert activityLevel to make duration inversely proportional
+    const duration = maxDuration - (Math.min(activityLevel, 100) / 100) * (maxDuration - minDuration);
     setAnimationDuration(`${duration}s`);
   }, [activityLevel]);
 

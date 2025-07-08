@@ -145,8 +145,8 @@ const MainChatInterface = () => {
         <FadeLogo />
       </div>
 
-      {/* Channel Selector - positioned below the logo with proper spacing */}
-      <div className="fixed top-24 left-1/2 transform -translate-x-1/2 z-interface">
+      {/* Channel Selector - positioned below the logo */}
+      <div className="relative z-behind-interface pt-20"> {/* Added relative positioning, lower z-index, and top padding */}
         <ChannelSelector
           onChannelChange={handleChannelChange}
           activeChannel={activeChannel}
