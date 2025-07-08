@@ -1,8 +1,8 @@
 // src/pages/main-chat-interface/index.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import Icon from 'components/AppIcon';
-import firebase from 'firebase/app';
-import 'firebase/database';
+import { initializeApp } from 'firebase/app';
+import { getDatabase, ref, onChildAdded, off, push as firebasePush } from 'firebase/database';
 import ChannelSelector from 'components/ui/ChannelSelector';
 import StatisticsPanel from 'components/ui/StatisticsPanel';
 import MessageInputPanel from 'components/ui/MessageInputPanel';
@@ -34,12 +34,29 @@ const MainChatInterface = () => {
   const activityTimeWindow = 30 * 1000; // 30 seconds
 
   // Initialize Firebase (only once)
+  // Initialize Firebase app
+  const [firebaseApp, setFirebaseApp] = useState(null);
+  const [database, setDatabase] = useState(null);
+
   useEffect(() => {
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
+    const app = initializeApp(firebaseConfig);
+    setFirebaseApp(app);
+    setDatabase(getDatabase(app));
+  }, [firebaseConfig]); // firebaseConfig should be stable
+
+  // Effect for handling Firebase message listeners based on activeChannel
+  useEffect(() => {
+    if (!activeChannel || !activeChannel.id || !database) { // Check for activeChannel, activeChannel.id, and database
+      setMessages([]);
+      return;
     }
   }, [firebaseConfig]); // Added firebaseConfig to dependency array
 
+    const messagesRef = ref(database, `channels/${activeChannel.id}/messages`); // Use activeChannel.id and new ref()
+    setMessages([]); // Clear messages when channel changes or initially loads
+
+    const listener = onChildAdded(messagesRef, (snapshot) => { // Use new onChildAdded
+      const newMessage = snapshot.val();
   // Effect for handling Firebase message listeners based on activeChannel
   useEffect(() => {
     if (!activeChannel || !activeChannel.id) { // Check for activeChannel and activeChannel.id
@@ -53,19 +70,13 @@ const MainChatInterface = () => {
       return;
     }
 
-    const messagesRef = firebase.database().ref(`channels/${activeChannel.id}/messages`); // Use activeChannel.id
-    setMessages([]); // Clear messages when channel changes or initially loads
-
-    const listener = messagesRef.on('child_added', (snapshot) => {
-      const newMessage = snapshot.val();
-      // It's good practice to include the message ID if you need to update/delete later
       setMessages(prev => [...prev, { ...newMessage, id: snapshot.key }]);
     });
 
     return () => {
-      messagesRef.off('child_added', listener);
+      off(messagesRef, 'child_added', listener); // Use new off()
     };
-  }, [activeChannel]); // Rerun when activeChannel changes
+  }, [activeChannel, database]); // Rerun when activeChannel or database changes
 
   const handleChannelChange = useCallback((channel) => {
     setActiveChannel(channel);
@@ -74,8 +85,8 @@ const MainChatInterface = () => {
   }, []);
 
   const handleSendMessage = useCallback((messageData) => {
-    if (!activeChannel || !activeChannel.id) { // Check for activeChannel and activeChannel.id
-      console.error("No active channel selected. Cannot send message.");
+    if (!activeChannel || !activeChannel.id || !database) { // Check for activeChannel, activeChannel.id, and database
+      console.error("No active channel selected or database not initialized. Cannot send message.");
       return;
     }
 
@@ -86,9 +97,10 @@ const MainChatInterface = () => {
       timestamp: new Date().toISOString(),
     };
 
-    firebase.database().ref(`channels/${activeChannel.id}/messages`).push(newMessage); // Use activeChannel.id
+    const messagesRef = ref(database, `channels/${activeChannel.id}/messages`);
+    firebasePush(messagesRef, newMessage); // Use new firebasePush()
     // setAllMessages(prev => [...prev, newMessage]); // Consider if allMessages needs to be channel-specific
-  }, [activeChannel]); // Rerun when activeChannel changes
+  }, [activeChannel, database]); // Rerun when activeChannel or database changes
 
   const handleReaction = useCallback((messageId, reactionType) => {
     setMessages(prev => prev.map(msg => {
