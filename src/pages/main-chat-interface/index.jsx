@@ -51,12 +51,20 @@ const MainChatInterface = () => {
       setMessages([]); // Clear messages if we can't subscribe or conditions aren't met
       return;
     }
+  }, [firebaseConfig]); // Added firebaseConfig to dependency array
 
     const messagesRef = ref(database, `channels/${activeChannel.id}/messages`); // Use activeChannel.id and new ref()
     setMessages([]); // Clear messages when channel changes or initially loads
 
     const listener = onChildAdded(messagesRef, (snapshot) => { // Use new onChildAdded
       const newMessage = snapshot.val();
+
+    // Ensure Firebase is initialized
+    if (!firebase.apps.length) {
+      console.error("Firebase not initialized yet!");
+      return;
+    }
+
       setMessages(prev => [...prev, { ...newMessage, id: snapshot.key }]);
     });
 
