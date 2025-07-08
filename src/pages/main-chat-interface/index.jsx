@@ -1,8 +1,8 @@
 // src/pages/main-chat-interface/index.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import Icon from 'components/AppIcon';
-import firebase from 'firebase/app';
-import 'firebase/database';
+import { initializeApp } from 'firebase/app';
+import { getDatabase, ref, onChildAdded, off, push as firebasePush } from 'firebase/database';
 import ChannelSelector from 'components/ui/ChannelSelector';
 import StatisticsPanel from 'components/ui/StatisticsPanel';
 import MessageInputPanel from 'components/ui/MessageInputPanel';
@@ -15,13 +15,13 @@ import TypingIndicator from './components/TypingIndicator';
 const MainChatInterface = () => {
   // TODO: Replace with your actual Firebase configuration
   const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_AUTH_DOMAIN",
-    databaseURL: "YOUR_DATABASE_URL",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_STORAGE_BUCKET",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    apiKey: "AIzaSyAX1yMBRCUxfsArQWG5XzN4mx-sk4hgqu0",
+    authDomain: "vibrant-bubble-chat.firebaseapp.com",
+    databaseURL: "https://vibrant-bubble-chat-default-rtdb.firebaseio.com",
+    projectId: "vibrant-bubble-chat",
+    storageBucket: "vibrant-bubble-chat.appspot.com",
+    messagingSenderId: "1084858947817",
+    appId: "1:1084858947817:web:bc63c68c7192a742713878"
   };
   const [messages, setMessages] = useState([]);
   const [allMessages, setAllMessages] = useState([]);
@@ -34,51 +34,60 @@ const MainChatInterface = () => {
   const activityTimeWindow = 30 * 1000; // 30 seconds
 
   // Initialize Firebase (only once)
+  // Initialize Firebase app
+  const [firebaseApp, setFirebaseApp] = useState(null);
+  const [database, setDatabase] = useState(null);
+
   useEffect(() => {
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
+    const app = initializeApp(firebaseConfig);
+    setFirebaseApp(app);
+    setDatabase(getDatabase(app));
+  }, [firebaseConfig]); // firebaseConfig should be stable
+
+  // Effect for handling Firebase message listeners based on activeChannel
+  useEffect(() => {
+    // More robust check: ensure database exists, activeChannel exists, and activeChannel.id is present.
+    if (!database || !activeChannel || typeof activeChannel.id === 'undefined') {
+      setMessages([]); // Clear messages if we can't subscribe or conditions aren't met
+      return;
     }
 
-    const messagesRef = firebase.database().ref('messages');
+    const messagesRef = ref(database, `channels/${activeChannel.id}/messages`); // Use activeChannel.id and new ref()
+    setMessages([]); // Clear messages when channel changes or initially loads
 
-    messagesRef.on('child_added', (snapshot) => {
+    const listener = onChildAdded(messagesRef, (snapshot) => { // Use new onChildAdded
       const newMessage = snapshot.val();
-      setMessages(prev => [...prev, newMessage]);
+      setMessages(prev => [...prev, { ...newMessage, id: snapshot.key }]);
     });
 
     return () => {
-      messagesRef.off('child_added');
+      off(messagesRef, 'child_added', listener); // Use new off()
     };
-  }, []);
-
-  // Initialize with empty messages when channel is selected
-  useEffect(() => {
-    if (activeChannel) {
-      setMessages([]);
-    }
-  }, [activeChannel]);
+  }, [activeChannel, database]); // Rerun when activeChannel or database changes
 
   const handleChannelChange = useCallback((channel) => {
     setActiveChannel(channel);
-    setMessages([]); // Clear messages when switching channels
+    // Messages will be cleared by the useEffect hook listening to activeChannel
     setShowWelcome(false);
   }, []);
 
   const handleSendMessage = useCallback((messageData) => {
+    if (!activeChannel || !activeChannel.id || !database) { // Check for activeChannel, activeChannel.id, and database
+      console.error("No active channel selected or database not initialized. Cannot send message.");
+      return;
+    }
+
     const newMessage = {
       ...messageData,
       reactions: { thumbsUp: 0, thumbsDown: 0 },
-      isUserMessage: true
-      timestamp: new Date().toISOString(), // Add timestamp for Firebase
+      isUserMessage: true, // Assuming this is still relevant
+      timestamp: new Date().toISOString(),
     };
 
-    // Push the new message to Firebase Realtime Database
-    firebase.database().ref('messages').push(newMessage);
-
-    // We no longer remove messages based on a timer here, as Firebase handles persistence.
-    // The MessageBubble component should handle its own fading animation.
-    // setAllMessages(prev => [...prev, newMessage]); // Keep if you need a local history
-  }, []);
+    const messagesRef = ref(database, `channels/${activeChannel.id}/messages`);
+    firebasePush(messagesRef, newMessage); // Use new firebasePush()
+    // setAllMessages(prev => [...prev, newMessage]); // Consider if allMessages needs to be channel-specific
+  }, [activeChannel, database]); // Rerun when activeChannel or database changes
 
   const handleReaction = useCallback((messageId, reactionType) => {
     setMessages(prev => prev.map(msg => {
