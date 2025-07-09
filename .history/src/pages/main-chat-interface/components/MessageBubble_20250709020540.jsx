@@ -18,7 +18,7 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
       const baseTop = 20 + (lane * laneHeight);
       
       return {
-        top: Math.max(25, Math.min(85, baseTop + verticalOffset)),
+        top: Math.max(20, Math.min(85, baseTop + verticalOffset)),
         left: horizontalStart
       };
     }
@@ -31,7 +31,7 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
     const randomOffset = (Math.random() - 0.5) * 6;
     
     return {
-      top: Math.max(25, Math.min(85, baseTop + randomOffset)),
+      top: Math.max(20, Math.min(85, baseTop + randomOffset)),
       left: 100 + Math.random() * 10,
     };
   });
@@ -86,29 +86,23 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
 
 
   useEffect(() => {
-    // Synchronized show timing based on server timestamp
-    const messageCreatedAt = message.createdAt || new Date(message.timestamp).getTime();
-    const now = Date.now();
-    const syncDelay = Math.max(0, messageCreatedAt - now + 200); // 200ms sync buffer
-    
-    // Show bubble with synchronized timing across all users
+    // Show bubble with pop-in animation
     const showTimer = setTimeout(() => {
       setIsVisible(true);
-    }, syncDelay);
+    }, 100 + (index % 5) * 50); // Stagger appearance slightly
 
-    // Start movement with same synchronized timing
-    const moveTimer = setTimeout(() => {
+    // Determine message flow speed and add slight staggering
+    setTimeout(() => {
       setPosition(prev => ({
         ...prev,
-        left: -25 - (message.position?.horizontalStart || 0) * 0.1 // Consistent exit point
+        left: -25 - Math.random() * 15 // Move to off-screen left with variation
       }));
-    }, syncDelay + 100);
+    }, 150 + (index % 3) * 100); // Stagger movement start
 
     return () => {
       clearTimeout(showTimer);
-      clearTimeout(moveTimer);
     };
-  }, [message]);
+  }, [index]);
 
   useEffect(() => {
     const durationMs = parseFloat(animationDuration) * 1000;

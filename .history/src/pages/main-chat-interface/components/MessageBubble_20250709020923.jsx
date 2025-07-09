@@ -18,7 +18,7 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
       const baseTop = 20 + (lane * laneHeight);
       
       return {
-        top: Math.max(25, Math.min(85, baseTop + verticalOffset)),
+        top: Math.max(20, Math.min(85, baseTop + verticalOffset)),
         left: horizontalStart
       };
     }

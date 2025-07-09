@@ -234,25 +234,10 @@ const MainChatInterface = () => {
     return () => {
       unsubscribe();
       clearInterval(heartbeatInterval);
-      
-      // Clean up this tab on unmount
-      runTransaction(userPresenceRef, (current) => {
-        if (!current) return null;
-        
-        const existingTabs = current.tabs || {};
-        delete existingTabs[tabId];
-        
-        // If no more tabs, remove user entirely
-        if (Object.keys(existingTabs).length === 0) {
-          return null;
-        }
-        
-        // Otherwise keep user but remove this tab
-        return {
-          ...current,
-          tabs: existingTabs
-        };
-      });
+      // Remove user presence when leaving channel
+      if (presenceRef.current) {
+        runTransaction(presenceRef.current, () => null);
+      }
     };
   }, [database, activeChannel]);
 
@@ -629,8 +614,8 @@ const MainChatInterface = () => {
         messageCount={messages.length}
       />
 
-      {/* Message Display Area - increased padding to avoid FADE logo and credit */}
-      <div className="fixed inset-0 pointer-events-none z-messages pt-28 pb-16">
+      {/* Message Display Area - expanded vertically with higher top padding to avoid FADE logo */}
+      <div className="fixed inset-0 pointer-events-none z-messages pt-24 pb-16">
         {messages
           .filter(message => !message.channelId || message.channelId === activeChannel?.id) // Prevent cross-contamination
           .map((message, index) => (

@@ -206,23 +206,23 @@ const MainChatInterface = () => {
       hasActiveUsers: false
     });
 
-    // Listen for presence changes in current channel with improved user counting
+    // Listen for presence changes in current channel with improved accuracy
     const unsubscribe = onValue(channelPresenceRef, (snapshot) => {
       const presenceData = snapshot.val() || {};
       const now = Date.now();
       
-      // Count unique users (not tabs) who are truly active
+      // Filter for truly active users (online and recent)
       const activeUserIds = Object.keys(presenceData).filter(userId => {
         const userData = presenceData[userId];
         if (!userData || !userData.online) return false;
         
-        // Check if user has any active tabs in the last 30 seconds
-        const userTabs = userData.tabs || {};
-        const hasActiveTabs = Object.values(userTabs).some(tab => 
-          tab.active && (now - (tab.lastSeen || 0)) < 30000
-        );
+        // Consider users active if they were seen in the last 30 seconds
+        const lastSeen = userData.lastSeen;
+        if (typeof lastSeen === 'number') {
+          return (now - lastSeen) < 30000; // 30 seconds
+        }
         
-        return hasActiveTabs || (now - (userData.lastSeen || 0)) < 30000;
+        return true; // If no timestamp, consider active
       });
       
       setActiveUsers(Math.max(1, activeUserIds.length));
@@ -234,25 +234,10 @@ const MainChatInterface = () => {
     return () => {
       unsubscribe();
       clearInterval(heartbeatInterval);
-      
-      // Clean up this tab on unmount
-      runTransaction(userPresenceRef, (current) => {
-        if (!current) return null;
-        
-        const existingTabs = current.tabs || {};
-        delete existingTabs[tabId];
-        
-        // If no more tabs, remove user entirely
-        if (Object.keys(existingTabs).length === 0) {
-          return null;
-        }
-        
-        // Otherwise keep user but remove this tab
-        return {
-          ...current,
-          tabs: existingTabs
-        };
-      });
+      // Remove user presence when leaving channel
+      if (presenceRef.current) {
+        runTransaction(presenceRef.current, () => null);
+      }
     };
   }, [database, activeChannel]);
 
@@ -629,8 +614,8 @@ const MainChatInterface = () => {
         messageCount={messages.length}
       />
 
-      {/* Message Display Area - increased padding to avoid FADE logo and credit */}
-      <div className="fixed inset-0 pointer-events-none z-messages pt-28 pb-16">
+      {/* Message Display Area - expanded vertically with higher top padding to avoid FADE logo */}
+      <div className="fixed inset-0 pointer-events-none z-messages pt-24 pb-16">
         {messages
           .filter(message => !message.channelId || message.channelId === activeChannel?.id) // Prevent cross-contamination
           .map((message, index) => (

@@ -629,8 +629,8 @@ const MainChatInterface = () => {
         messageCount={messages.length}
       />
 
-      {/* Message Display Area - increased padding to avoid FADE logo and credit */}
-      <div className="fixed inset-0 pointer-events-none z-messages pt-28 pb-16">
+      {/* Message Display Area - expanded vertically with higher top padding to avoid FADE logo */}
+      <div className="fixed inset-0 pointer-events-none z-messages pt-24 pb-16">
         {messages
           .filter(message => !message.channelId || message.channelId === activeChannel?.id) // Prevent cross-contamination
           .map((message, index) => (
