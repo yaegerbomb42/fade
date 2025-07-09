@@ -256,6 +256,17 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
             </div>
           </button>
         </form>
+
+        {/* Temp ban notification */}
+        {tempBanEnd > Date.now() && (
+          <div className="mt-2 p-2 glass-panel bg-error/20 border-error/40 text-error text-xs text-center">
+            Temp banned for spamming (4+ violations). Time remaining: {
+              cooldownTime >= 3600 ? `${Math.floor(cooldownTime / 3600)}h ${Math.floor((cooldownTime % 3600) / 60)}m` :
+              cooldownTime >= 60 ? `${Math.floor(cooldownTime / 60)}m ${cooldownTime % 60}s` :
+              `${cooldownTime}s`
+            }
+          </div>
+        )}
       </div>
     </div>
   );

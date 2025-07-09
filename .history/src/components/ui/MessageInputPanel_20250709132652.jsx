@@ -83,6 +83,46 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
       setCooldownTime(prev => {
         if (prev <= 1) {
           clearInterval(timer);
+          setTempBanEnd(0);
+          localStorage.removeItem('fade-temp-ban-end');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    setCooldownTimer(timer);
+  };
+
+  const applyTempBan = (violations) => {
+    // Only apply temp ban if violations reach 4 or more
+    if (violations < 4) {
+      return;
+    }
+    
+    // Escalating temp ban durations: 30s, 2min, 10min, 30min, 1hr
+    const banDurations = [30, 120, 600, 1800, 3600]; // in seconds
+    const banIndex = Math.min(violations - 4, banDurations.length - 1); // Start from index 0 when violations = 4
+    const banDuration = banDurations[banIndex];
+    
+    const banEndTime = Date.now() + (banDuration * 1000);
+    setTempBanEnd(banEndTime);
+    setCooldownTime(banDuration);
+    
+    localStorage.setItem('fade-violations', violations.toString());
+    localStorage.setItem('fade-temp-ban-end', banEndTime.toString());
+    
+    startCooldownTimer(banDuration);
+  };
+
+  const startReloadAnimation = () => {
+    setIsReloading(true);
+    setCooldownTime(2);
+    
+    const timer = setInterval(() => {
+      setCooldownTime(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
           setIsReloading(false);
           return 0;
         }
@@ -93,18 +133,39 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
     setCooldownTimer(timer);
   };
 
-  const startReloadAnimation = () => {
-    setIsReloading(true);
-    setCooldownTime(2);
-    startCooldownTimer(2);
-  };
-
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (!message.trim() || !nickname.trim() || !activeChannel) return;
     
+    const now = Date.now();
+    
+    // Check if user is temp banned
+    if (tempBanEnd > now) {
+      return;
+    }
+    
     // Check if already in cooldown/reload state
     if (cooldownTime > 0 || isReloading) {
+      return;
+    }
+    
+    const timeSinceLastMessage = now - lastMessageTime;
+    const isSameMessage = message.trim() === lastMessage;
+    
+    // Check for spam (same message or too frequent)
+    if (isSameMessage || timeSinceLastMessage < 2000) {
+      // Increment violation count and apply temp ban if needed
+      const newViolationCount = violationCount + 1;
+      setViolationCount(newViolationCount);
+      localStorage.setItem('fade-violations', newViolationCount.toString());
+      
+      // Only apply temp ban if violations reach 4+
+      applyTempBan(newViolationCount);
+      
+      // If not temp banned, still show reload animation
+      if (newViolationCount < 4) {
+        startReloadAnimation();
+      }
       return;
     }
     
@@ -119,7 +180,7 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
     });
     
     setLastMessage(message.trim());
-    setLastMessageTime(Date.now());
+    setLastMessageTime(now);
     setMessage('');
     onTypingChange(false);
     if (typingTimeout) {
@@ -236,9 +297,15 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
             {(cooldownTime > 0 || isReloading) && (
               <div className="absolute bottom-0 left-0 right-0 h-1 bg-glass-border rounded-b overflow-hidden">
                 <div 
-                  className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-1000 ease-linear"
+                  className={`h-full transition-all duration-1000 ease-linear ${
+                    tempBanEnd > Date.now() 
+                      ? 'bg-gradient-to-r from-error to-accent' 
+                      : 'bg-gradient-to-r from-primary to-secondary'
+                  }`}
                   style={{ 
-                    width: `${((2 - cooldownTime) / 2) * 100}%`,
+                    width: isReloading || cooldownTime <= 2 
+                      ? `${((2 - cooldownTime) / 2) * 100}%`
+                      : `${((Math.max(cooldownTime - 2, 0)) / Math.max(tempBanEnd > Date.now() ? tempBanEnd - Date.now() : 2000, 2000)) * 100}%`,
                     transition: cooldownTime === 2 ? 'none' : 'width 1s linear'
                   }}
                 />
@@ -251,11 +318,30 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
             disabled={!message.trim() || !activeChannel || cooldownTime > 0 || isReloading}
             className={`glass-button px-6 py-3 bg-gradient-to-r from-primary to-secondary text-text-primary font-medium hover:from-primary/80 hover:to-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 relative`}
           >
-            <div className={`relative ${isReloading ? 'send-glow' : ''}`}>
-              <Icon name="Send" size={18} />
-            </div>
+            {cooldownTime > 0 && tempBanEnd > Date.now() ? (
+              <span className="text-sm font-mono">
+                {cooldownTime >= 3600 ? `${Math.floor(cooldownTime / 3600)}h ${Math.floor((cooldownTime % 3600) / 60)}m` :
+                 cooldownTime >= 60 ? `${Math.floor(cooldownTime / 60)}m ${cooldownTime % 60}s` :
+                 `${cooldownTime}s`}
+              </span>
+            ) : (
+              <div className={`relative ${isReloading ? 'send-glow' : ''}`}>
+                <Icon name="Send" size={18} />
+              </div>
+            )}
           </button>
         </form>
+
+        {/* Temp ban notification */}
+        {tempBanEnd > Date.now() && (
+          <div className="mt-2 p-2 glass-panel bg-error/20 border-error/40 text-error text-xs text-center">
+            Temp banned for spamming (4+ violations). Time remaining: {
+              cooldownTime >= 3600 ? `${Math.floor(cooldownTime / 3600)}h ${Math.floor((cooldownTime % 3600) / 60)}m` :
+              cooldownTime >= 60 ? `${Math.floor(cooldownTime / 60)}m ${cooldownTime % 60}s` :
+              `${cooldownTime}s`
+            }
+          </div>
+        )}
       </div>
     </div>
   );

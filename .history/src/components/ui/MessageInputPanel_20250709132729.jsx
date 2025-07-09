@@ -251,11 +251,30 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
             disabled={!message.trim() || !activeChannel || cooldownTime > 0 || isReloading}
             className={`glass-button px-6 py-3 bg-gradient-to-r from-primary to-secondary text-text-primary font-medium hover:from-primary/80 hover:to-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 relative`}
           >
-            <div className={`relative ${isReloading ? 'send-glow' : ''}`}>
-              <Icon name="Send" size={18} />
-            </div>
+            {cooldownTime > 0 && tempBanEnd > Date.now() ? (
+              <span className="text-sm font-mono">
+                {cooldownTime >= 3600 ? `${Math.floor(cooldownTime / 3600)}h ${Math.floor((cooldownTime % 3600) / 60)}m` :
+                 cooldownTime >= 60 ? `${Math.floor(cooldownTime / 60)}m ${cooldownTime % 60}s` :
+                 `${cooldownTime}s`}
+              </span>
+            ) : (
+              <div className={`relative ${isReloading ? 'send-glow' : ''}`}>
+                <Icon name="Send" size={18} />
+              </div>
+            )}
           </button>
         </form>
+
+        {/* Temp ban notification */}
+        {tempBanEnd > Date.now() && (
+          <div className="mt-2 p-2 glass-panel bg-error/20 border-error/40 text-error text-xs text-center">
+            Temp banned for spamming (4+ violations). Time remaining: {
+              cooldownTime >= 3600 ? `${Math.floor(cooldownTime / 3600)}h ${Math.floor((cooldownTime % 3600) / 60)}m` :
+              cooldownTime >= 60 ? `${Math.floor(cooldownTime / 60)}m ${cooldownTime % 60}s` :
+              `${cooldownTime}s`
+            }
+          </div>
+        )}
       </div>
     </div>
   );
