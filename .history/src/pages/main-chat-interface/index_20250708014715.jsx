@@ -13,18 +13,20 @@ import MessageBubble from './components/MessageBubble';
 import TypingIndicator from './components/TypingIndicator';
 
 const MainChatInterface = () => {
+  // TODO: Replace with your actual Firebase configuration
   const firebaseConfig = {
     apiKey: "AIzaSyAX1yMBRCUxfsArQWG5XzN4mx-sk4hgqu0",
     authDomain: "vibrant-bubble-chat.firebaseapp.com",
-    databaseURL: "https://vibrant-bubble-chat-default-rtdb.firebaseio.com",
+    databaseURL: "https://aeueua-29dba-default-rtdb.firebaseio.com",
     projectId: "vibrant-bubble-chat",
     storageBucket: "vibrant-bubble-chat.appspot.com",
     messagingSenderId: "1084858947817",
     appId: "1:1084858947817:web:bc63c68c7192a742713878"
   };
   const [messages, setMessages] = useState([]);
+  const [allMessages, setAllMessages] = useState([]);
   const [messageQueue, setMessageQueue] = useState([]);
-  const [activeChannel, setActiveChannel] = useState({ id: 'general', name: 'general' });
+  const [activeChannel, setActiveChannel] = useState({ id: 'global', name: 'Global Chat' }); // Default to a global channel
   const [isTyping, setIsTyping] = useState(false);
   const [showTypingIndicator, setShowTypingIndicator] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
@@ -92,55 +94,65 @@ const MainChatInterface = () => {
   }, [firebaseConfig]); // firebaseConfig should be stable
 
   // Effect for handling Firebase message listeners based on activeChannel
+  // Removed unnecessary useEffect hook
+
   useEffect(() => {
-    // More robust check: ensure database exists, activeChannel exists, and activeChannel.id is present.
-    if (!database || !activeChannel || typeof activeChannel.id === 'undefined') {
-      setMessages([]); // Clear messages if we can't subscribe or conditions aren't met
+    if (!database) {
+      setMessages([]);
       return;
     }
 
-    const messagesRef = ref(database, `channels/${activeChannel.id}/messages`); // Use activeChannel.id and new ref()
-    setMessages([]); // Clear messages when channel changes or initially loads
+    // Listen to a single global messages path
+    const messagesRef = ref(database, `messages`);
+    setMessages([]);
 
-    const listener = onChildAdded(messagesRef, (snapshot) => { // Use new onChildAdded
-      const newMessage = snapshot.val();
-      setMessages(prev => [...prev, { ...newMessage, id: snapshot.key }]);
-    });
+      const listener = onChildAdded(messagesRef, (snapshot) => {
+        const newMessage = snapshot.val();
+
+        if (!firebaseApp) {
+          console.error("Firebase not initialized yet!");
+          return;
+        }
+
+        // Add new message to queue, ensuring no duplicates based on snapshot.key
+        setMessageQueue(prev => {
+          const messageId = snapshot.key;
+          const existsInQueue = prev.some(msg => msg.id === messageId);
+          if (existsInQueue) {
+            return prev;
+          }
+          return [...prev, { ...newMessage, id: messageId }];
+        });
+      });
 
     return () => {
-      off(messagesRef, 'child_added', listener); // Use new off()
+      off(messagesRef, 'child_added', listener);
     };
-  }, [activeChannel, database]); // Rerun when activeChannel or database changes
-
-  const handleChannelChange = useCallback((channel) => {
-    setActiveChannel(channel);
-    // Messages will be cleared by the useEffect hook listening to activeChannel
-    setShowWelcome(false);
-  }, []);
+  }, [activeChannel, database, firebaseApp]);
 
   const handleSendMessage = useCallback((messageData) => {
-  if (!activeChannel || !activeChannel.id || !database) {
-    console.error("SendMessage: No active channel or DB not init.");
-    return;
-  }
+    if (!database) {
+      console.error("Database not initialized. Cannot send message.");
+      return;
+    }
 
-  const newMessagePayload = {
-    ...messageData,
-    reactions: { thumbsUp: 0, thumbsDown: 0 },
-    isUserMessage: true,
-    timestamp: new Date().toISOString(),
-  };
+    const newMessage = {
+      ...messageData,
+      reactions: { thumbsUp: 0, thumbsDown: 0 },
+      isUserMessage: true,
+      timestamp: new Date().toISOString(),
+    };
 
-  const messagesRef = ref(database, `channels/${activeChannel.id}/messages`);
-  firebasePush(messagesRef, newMessagePayload);
-  }, [activeChannel, database]);
+    // Push messages to a global path
+    const messagesRef = ref(database, `messages`);
+    firebasePush(messagesRef, newMessage);
+  }, [database]); // Rerun when database changes
 
   const [reactionStats, setReactionStats] = useState({
     totalLikes: 0,
     totalDislikes: 0,
     topMessages: []
   });
-
 
   const handleReaction = useCallback((messageId, reactionType) => {
     setMessages(prev => prev.map(msg => {
@@ -164,6 +176,19 @@ const MainChatInterface = () => {
         return {
           ...msg,
           reactions: newReactions
+        };
+      }
+      return msg;
+    }));
+
+    setAllMessages(prev => prev.map(msg => {
+      if (msg.id === messageId) {
+        return {
+          ...msg,
+          reactions: {
+            ...msg.reactions,
+            [reactionType]: msg.reactions[reactionType] + 1
+          }
         };
       }
       return msg;
@@ -196,20 +221,13 @@ const MainChatInterface = () => {
       {/* Channel Selector - positioned top-left */}
       <div className="fixed top-4 left-4 z-interface">
         <div className="flex items-center gap-2">
+          {/* ChannelSelector is now always active for the global channel */}
           <ChannelSelector
-            onChannelChange={handleChannelChange}
+            onChannelChange={() => {}} // No-op as channel is fixed
             activeChannel={activeChannel}
-            className={activeChannel ? 'w-10 h-10' : ''}
+            className={'w-10 h-10'}
           />
-          {activeChannel && (
-            <button
-              onClick={() => setActiveChannel(null)}
-              className="glass-button p-2 hover:bg-glass-highlight transition-colors"
-              title="Minimize"
-            >
-              <Icon name="Minimize2" size={16} className="text-text-primary" />
-            </button>
-          )}
+          {/* Removed minimize button as channel selection is no longer dynamic */}
         </div>
       </div>
 
@@ -217,6 +235,7 @@ const MainChatInterface = () => {
       <StatisticsPanel
         activeChannel={activeChannel}
         messageCount={messages.length}
+        allMessages={allMessages}
       />
 
       {/* Message Display Area - expanded vertically */}
@@ -246,7 +265,7 @@ const MainChatInterface = () => {
       />
 
       {/* Welcome Message */}
-      {showWelcome && !activeChannel && (
+      {showWelcome && ( // Show welcome always, as there's no activeChannel to check
         <div
           className="fixed inset-0 flex items-center justify-center z-interface"
           onClick={() => setShowWelcome(false)}

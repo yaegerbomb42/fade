@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Icon from '../AppIcon';
 import TopVibesSection from './TopVibesSection';
 
-const StatisticsPanel = ({ activeChannel, messageCount, reactionStats = { totalLikes: 0, totalDislikes: 0, topMessages: [] } }) => {
+const StatisticsPanel = ({ activeChannel, messageCount, allMessages, reactionStats = { totalLikes: 0, totalDislikes: 0, topMessages: [] } }) => {
   const [stats, setStats] = useState({
     totalMessages: 0,
     messagesPerMinute: 0,
@@ -32,17 +32,24 @@ const StatisticsPanel = ({ activeChannel, messageCount, reactionStats = { totalL
         messagesPerMinute: messagesPerMin,
         userSessionTime: formattedTime
       });
-      if (activeChannel) {
+      if (activeChannel && allMessages) {
         const now = Date.now();
-        // The logic for 'vibes' requires allMessages, which is removed.
-        // This section needs to be re-evaluated or removed.
-        // For now, we'll clear vibes.
-        setVibes({ lastMinute: null, last10Minutes: null, lastHour: null });
+        const channelMessages = allMessages.filter(m => m.channel === activeChannel.id);
+        const getTop = (ms) => {
+          const filtered = channelMessages.filter(m => now - new Date(m.timestamp).getTime() <= ms);
+          if (!filtered.length) return null;
+          return filtered.sort((a, b) => b.reactions.thumbsUp - a.reactions.thumbsUp)[0];
+        };
+        setVibes({
+          lastMinute: getTop(60 * 1000),
+          last10Minutes: getTop(10 * 60 * 1000),
+          lastHour: getTop(60 * 60 * 1000)
+        });
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [messageCount, sessionStartTime, activeChannel]);
+  }, [messageCount, sessionStartTime, activeChannel, allMessages]);
 
   const StatItem = ({ icon, label, value, color = 'text-text-secondary' }) => (
     <div className="flex items-center justify-between py-2">

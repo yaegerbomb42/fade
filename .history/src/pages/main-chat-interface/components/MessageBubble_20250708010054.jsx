@@ -84,14 +84,25 @@ const MessageBubble = ({ message, index, onReaction, activityLevel = 1 }) => {
       style={{
         top: `${position.top}%`,
         left: `${position.left}%`,
-        transition: `left ${animationDuration} linear, opacity 0.3s ease, transform 0.3s ease`,
-        willChange: 'left, opacity, transform'
+        transitionDuration: animationDuration,
+        transitionProperty: 'left, opacity, transform',
       }}
     >
       <div className={`glass-panel p-4 bg-gradient-to-br ${bubbleGradient} border-glass-border/50 hover:border-glass-highlight transition-all duration-300 group relative`}>
-        {/* Reaction areas with larger click targets and visual feedback */}
+        {/* Reaction areas - left half for thumbs down, right half for thumbs up */}
+        <div 
+          className="reaction-left" 
+          onClick={handleThumbsDown}
+          title="Dislike"
+        ></div>
+        <div 
+          className="reaction-right" 
+          onClick={handleThumbsUp}
+          title="Like"
+        ></div>
+
         {/* Author */}
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-2 pointer-events-none">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center">
               <span className="text-xs font-bold text-white">
@@ -103,7 +114,7 @@ const MessageBubble = ({ message, index, onReaction, activityLevel = 1 }) => {
             </span>
           </div>
           <span className="text-xs text-text-secondary/70 font-data">
-            {new Date(message.timestamp).toLocaleTimeString('en-US', {
+            {message.timestamp.toLocaleTimeString('en-US', {
               hour12: false,
               hour: '2-digit',
               minute: '2-digit',
@@ -112,30 +123,22 @@ const MessageBubble = ({ message, index, onReaction, activityLevel = 1 }) => {
         </div>
 
         {/* Message Content */}
-        <div className="text-sm text-text-primary leading-relaxed mb-3">
+        <div className="text-sm text-text-primary leading-relaxed mb-3 pointer-events-none">
           {message.text}
         </div>
 
-        {/* Reactions Indicators (clickable) */}
-        <div className="flex items-center justify-between">
+        {/* Reactions Indicators (visual only, not clickable) */}
+        <div className="flex items-center justify-between pointer-events-none">
           <div className="flex items-center gap-2">
-            <button
-              className={`glass-button px-2 py-1 text-xs flex items-center gap-1 transition-all duration-300 cursor-pointer ${hasReacted.thumbsUp ? 'bg-success/30 text-success border-success/50' : 'text-text-secondary hover:bg-glass-highlight/20'}`}
-              onClick={handleThumbsUp}
-              title="Like"
-            >
+            <div className={`glass-button px-2 py-1 text-xs flex items-center gap-1 transition-all duration-300 ${hasReacted.thumbsUp ? 'bg-success/30 text-success border-success/50' : 'text-text-secondary'}`}>
               <span>👍</span>
               <span className="font-data">{message.reactions.thumbsUp}</span>
-            </button>
+            </div>
             
-            <button
-              className={`glass-button px-2 py-1 text-xs flex items-center gap-1 transition-all duration-300 cursor-pointer ${hasReacted.thumbsDown ? 'bg-error/30 text-error border-error/50' : 'text-text-secondary hover:bg-glass-highlight/20'}`}
-              onClick={handleThumbsDown}
-              title="Dislike"
-            >
+            <div className={`glass-button px-2 py-1 text-xs flex items-center gap-1 transition-all duration-300 ${hasReacted.thumbsDown ? 'bg-error/30 text-error border-error/50' : 'text-text-secondary'}`}>
               <span>👎</span>
               <span className="font-data">{message.reactions.thumbsDown}</span>
-            </button>
+            </div>
           </div>
 
           {/* Drift indicator */}
