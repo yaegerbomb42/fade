@@ -3,7 +3,7 @@ import React from 'react';
 
 const FadeLogo = () => {
   return (
-    <section className="h logo-small">
+    <section className="fade-logo-container logo-small">
       <div className="c">
         <div className="l">F</div>
         <div className="l">A</div>
@@ -14,5 +14,4 @@ const FadeLogo = () => {
     </section>
   );
 };
-
 export default FadeLogo;

@@ -1,8 +1,8 @@
 // src/pages/main-chat-interface/index.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from 'components/AppIcon';
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, onChildAdded, off, push as firebasePush } from 'firebase/database';
+import { getDatabase, ref, onChildAdded, onChildChanged, off, push as firebasePush, runTransaction } from 'firebase/database';
 import ChannelSelector from 'components/ui/ChannelSelector';
 import StatisticsPanel from 'components/ui/StatisticsPanel';
 import MessageInputPanel from 'components/ui/MessageInputPanel';
@@ -31,31 +31,36 @@ const MainChatInterface = () => {
   const [messageTimestamps, setMessageTimestamps] = useState([]);
   const [activityLevel, setActivityLevel] = useState(1);
   const activityTimeWindow = 30 * 1000; // 30 seconds
+  const processedIds = useRef(new Set());
 
   // Process messages from queue
   useEffect(() => {
+    if (messageQueue.length === 0) return;
+
     const processQueue = () => {
-      if (messageQueue.length > 0) {
-        const [nextMessage, ...remainingMessages] = messageQueue;
-        
-        // Check if message already exists
-        setMessages(prev => {
-          const exists = prev.some(msg => msg.id === nextMessage.id);
-          return exists ? prev : [...prev, nextMessage];
+      setMessageQueue(prev => {
+        if (prev.length === 0) return prev;
+        const [next, ...rest] = prev;
+
+        setMessages(msgs => {
+          const exists = msgs.some(m => m.id === next.id);
+          if (!exists) {
+            const minDuration = 4;
+            const maxDuration = 15;
+            const duration = maxDuration - ((activityLevel - 1) / 4) * (maxDuration - minDuration);
+            msgs = [...msgs, { ...next, animationDuration: `${duration}s` }];
+            setMessageTimestamps(t => [...t, Date.now()]);
+          }
+          return msgs;
         });
 
-        // Update activity level based on message rate
-        setMessageTimestamps(prev => [...prev, Date.now()]);
-
-        // Remove processed message from queue
-        setMessageQueue(remainingMessages);
-      }
+        return rest;
+      });
     };
 
-    // Adjust processing interval based on queue size
-    const interval = setInterval(processQueue, Math.max(100, 1000 - (messageQueue.length * 50)));
+    const interval = setInterval(processQueue, Math.max(200, 1000 - messageQueue.length * 50));
     return () => clearInterval(interval);
-  }, [messageQueue]);
+  }, [messageQueue.length, activityLevel]);
 
   // Update activity level calculation
   useEffect(() => {
@@ -93,24 +98,38 @@ const MainChatInterface = () => {
 
   // Effect for handling Firebase message listeners based on activeChannel
   useEffect(() => {
-    // More robust check: ensure database exists, activeChannel exists, and activeChannel.id is present.
     if (!database || !activeChannel || typeof activeChannel.id === 'undefined') {
-      setMessages([]); // Clear messages if we can't subscribe or conditions aren't met
+      setMessages([]);
+      setMessageQueue([]);
+      processedIds.current.clear();
       return;
     }
 
-    const messagesRef = ref(database, `channels/${activeChannel.id}/messages`); // Use activeChannel.id and new ref()
-    setMessages([]); // Clear messages when channel changes or initially loads
+    const messagesRef = ref(database, `channels/${activeChannel.id}/messages`);
+    setMessages([]);
+    setMessageQueue([]);
+    processedIds.current.clear();
 
-    const listener = onChildAdded(messagesRef, (snapshot) => { // Use new onChildAdded
+    const addListener = onChildAdded(messagesRef, (snapshot) => {
       const newMessage = snapshot.val();
-      setMessages(prev => [...prev, { ...newMessage, id: snapshot.key }]);
+      const id = snapshot.key;
+      if (!processedIds.current.has(id)) {
+        processedIds.current.add(id);
+        setMessageQueue(q => [...q, { ...newMessage, id }]);
+      }
+    });
+
+    const changeListener = onChildChanged(messagesRef, (snapshot) => {
+      const updated = snapshot.val();
+      const id = snapshot.key;
+      setMessages(prev => prev.map(m => (m.id === id ? { ...m, ...updated } : m)));
     });
 
     return () => {
-      off(messagesRef, 'child_added', listener); // Use new off()
+      off(messagesRef, 'child_added', addListener);
+      off(messagesRef, 'child_changed', changeListener);
     };
-  }, [activeChannel, database]); // Rerun when activeChannel or database changes
+  }, [activeChannel, database]);
 
   const handleChannelChange = useCallback((channel) => {
     setActiveChannel(channel);
@@ -141,33 +160,32 @@ const MainChatInterface = () => {
     topMessages: []
   });
 
+  useEffect(() => {
+    const totals = messages.reduce(
+      (acc, msg) => {
+        acc.totalLikes += msg.reactions?.thumbsUp || 0;
+        acc.totalDislikes += msg.reactions?.thumbsDown || 0;
+        return acc;
+      },
+      { totalLikes: 0, totalDislikes: 0 }
+    );
+
+    const topMessages = [...messages]
+      .sort((a, b) => (b.reactions.thumbsUp - b.reactions.thumbsDown) - (a.reactions.thumbsUp - a.reactions.thumbsDown))
+      .slice(0, 5);
+
+    setReactionStats({ ...totals, topMessages });
+  }, [messages]);
+
 
   const handleReaction = useCallback((messageId, reactionType) => {
-    setMessages(prev => prev.map(msg => {
-      if (msg.id === messageId) {
-        const newReactions = {
-          ...msg.reactions,
-          [reactionType]: msg.reactions[reactionType] + 1
-        };
-        
-        // Update reaction stats
-        setReactionStats(prevStats => ({
-          totalLikes: prevStats.totalLikes + (reactionType === 'thumbsUp' ? 1 : 0),
-          totalDislikes: prevStats.totalDislikes + (reactionType === 'thumbsDown' ? 1 : 0),
-          topMessages: [
-            ...prevStats.topMessages.filter(m => m.id !== messageId),
-            { ...msg, reactions: newReactions }
-          ].sort((a, b) => (b.reactions.thumbsUp - b.reactions.thumbsDown) - (a.reactions.thumbsUp - a.reactions.thumbsDown))
-          .slice(0, 5)
-        }));
+    if (!database || !activeChannel) return;
+    const reactionRef = ref(database, `channels/${activeChannel.id}/messages/${messageId}/reactions/${reactionType}`);
+    runTransaction(reactionRef, (current) => (current || 0) + 1);
+  }, [database, activeChannel]);
 
-        return {
-          ...msg,
-          reactions: newReactions
-        };
-      }
-      return msg;
-    }));
+  const handleRemoveMessage = useCallback((id) => {
+    setMessages(prev => prev.filter(m => m.id !== id));
   }, []);
 
   useEffect(() => {
@@ -228,6 +246,7 @@ const MainChatInterface = () => {
             message={message}
             index={index}
             onReaction={handleReaction}
+            onRemove={handleRemoveMessage}
           />
         ))}
       </div>
