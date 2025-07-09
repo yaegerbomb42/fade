@@ -338,7 +338,9 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
           <button
             type="submit"
             disabled={!message.trim() || !activeChannel || cooldownTime > 0 || isReloading}
-            className={`glass-button px-6 py-3 bg-gradient-to-r from-primary to-secondary text-text-primary font-medium hover:from-primary/80 hover:to-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 relative`}
+            className={`glass-button px-6 py-3 bg-gradient-to-r from-primary to-secondary text-text-primary font-medium hover:from-primary/80 hover:to-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 relative ${
+              isReloading ? 'animate-pulse' : ''
+            }`}
           >
             {cooldownTime > 0 && tempBanEnd > Date.now() ? (
               <span className="text-sm font-mono">
@@ -347,8 +349,11 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
                  `${cooldownTime}s`}
               </span>
             ) : (
-              <div className={`relative ${isReloading ? 'send-glow' : ''}`}>
+              <div className="relative">
                 <Icon name="Send" size={18} />
+                {isReloading && (
+                  <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-primary border-r-primary animate-spin"></div>
+                )}
               </div>
             )}
           </button>

@@ -425,7 +425,6 @@ const MainChatInterface = () => {
     // Clear current state when switching channels
     setMessages([]);
     setMessageQueue([]);
-    messagePositions.current.clear(); // Clear position tracking for new channel
     currentChannelRef.current = channelId;
     
     // Record when user joins - ONLY show messages created AFTER this point

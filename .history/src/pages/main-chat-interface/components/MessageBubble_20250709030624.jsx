@@ -114,14 +114,10 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
   useEffect(() => {
     const durationMs = parseFloat(animationDuration) * 1000;
     const removeTimer = setTimeout(() => {
-      // Call parent cleanup callback if provided
-      if (message.onRemove) {
-        message.onRemove(message.id);
-      }
       onRemove && onRemove(message.id);
     }, durationMs);
     return () => clearTimeout(removeTimer);
-  }, [animationDuration, message.id, message.onRemove, onRemove]);
+  }, [animationDuration, message.id, onRemove]);
 
   const handleThumbsUp = (e) => {
     e.stopPropagation();

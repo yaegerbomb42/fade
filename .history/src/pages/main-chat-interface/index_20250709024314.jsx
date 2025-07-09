@@ -26,7 +26,6 @@ const MainChatInterface = () => {
   const [messages, setMessages] = useState([]);
   const [messageQueue, setMessageQueue] = useState([]);
   const permanentlyProcessedIds = useRef(new Set());
-  const messagePositions = useRef(new Map()); // Track active message positions for collision detection
   // Remove channelMessages - it's causing cross-contamination
   const [activeChannel, setActiveChannel] = useState({ id: 'vibes', name: 'Just Vibes' });
   const [isTyping, setIsTyping] = useState(false);
@@ -43,90 +42,7 @@ const MainChatInterface = () => {
   const presenceRef = useRef(null);
   const currentChannelRef = useRef(null); // Track current channel for cleanup
 
-  // Collision detection and positioning logic
-  const findAvailablePosition = useCallback((messageId, preferredLane = null) => {
-    const lanes = 6;
-    const laneHeight = 70 / lanes;
-    const messageHeight = 8; // Approximate height percentage of a message bubble
-    const minSpacing = 12; // Minimum vertical spacing between messages
-    
-    // Get current active positions
-    const activePositions = Array.from(messagePositions.current.values());
-    
-    // Try preferred lane first, then others
-    const lanesToTry = preferredLane !== null 
-      ? [preferredLane, ...Array.from({length: lanes}, (_, i) => i).filter(i => i !== preferredLane)]
-      : Array.from({length: lanes}, (_, i) => i);
-    
-    for (const lane of lanesToTry) {
-      const baseTop = 20 + (lane * laneHeight);
-      
-      // Try different vertical positions within the lane
-      const positions = [
-        baseTop, // Center of lane
-        baseTop - 3, // Slightly above center
-        baseTop + 3, // Slightly below center
-        baseTop - 6, // Further above
-        baseTop + 6, // Further below
-      ];
-      
-      for (const top of positions) {
-        // Ensure position is within bounds
-        if (top < 15 || top > 80) continue;
-        
-        // Check for collisions with existing messages
-        const hasCollision = activePositions.some(pos => {
-          const verticalDistance = Math.abs(pos.top - top);
-          const horizontalOverlap = pos.left > 80; // Messages still in visible area
-          return horizontalOverlap && verticalDistance < minSpacing;
-        });
-        
-        if (!hasCollision) {
-          const position = {
-            lane,
-            verticalOffset: top - baseTop,
-            horizontalStart: 100 + Math.random() * 5, // Small random start variation
-            top,
-            left: 100 + Math.random() * 5
-          };
-          
-          // Store position for collision tracking
-          messagePositions.current.set(messageId, position);
-          
-          return position;
-        }
-      }
-    }
-    
-    // If no collision-free position found, use a delayed position
-    const fallbackLane = Math.floor(Math.random() * lanes);
-    const baseTop = 20 + (fallbackLane * laneHeight);
-    const position = {
-      lane: fallbackLane,
-      verticalOffset: 0,
-      horizontalStart: 120 + Math.random() * 10, // Start further right to create delay
-      top: baseTop,
-      left: 120 + Math.random() * 10
-    };
-    
-    messagePositions.current.set(messageId, position);
-    return position;
-  }, []);
-
-  // Clean up message positions when messages are removed
-  const removeMessagePosition = useCallback((messageId) => {
-    messagePositions.current.delete(messageId);
-  }, []);
-
-  // Update message positions as they move
-  const updateMessagePosition = useCallback((messageId, newLeft) => {
-    const position = messagePositions.current.get(messageId);
-    if (position) {
-      messagePositions.current.set(messageId, { ...position, left: newLeft });
-    }
-  }, []);
-
-  // Process messages from queue with dynamic spacing
+  // Process messages from queue
   useEffect(() => {
     if (messageQueue.length === 0) return;
 
@@ -138,19 +54,10 @@ const MainChatInterface = () => {
         setMessages(msgs => {
           const exists = msgs.some(m => m.id === next.id);
           if (!exists && next && next.id && typeof next === 'object') {
-            // Dynamic speed adjustment based on congestion
-            const congestionLevel = Math.min(msgs.length / 10, 1); // 0-1 based on active messages
-            const baseMinDuration = 15;
-            const baseMaxDuration = 45;
-            
-            // Speed up when congested, slow down when sparse
-            const minDuration = baseMinDuration * (1 - congestionLevel * 0.3); // Up to 30% faster
-            const maxDuration = baseMaxDuration * (1 + congestionLevel * 0.2); // Up to 20% slower
-            
+            // Slower base speeds with better scaling
+            const minDuration = 15; // Faster for high activity
+            const maxDuration = 45; // Much slower for low activity
             const duration = maxDuration - ((activityLevel - 1) / 4) * (maxDuration - minDuration);
-            
-            // Find optimal position with collision detection
-            const position = findAvailablePosition(next.id, next.preferredLane);
             
             // Ensure message has required properties with defaults
             const validatedMessage = {
@@ -162,10 +69,7 @@ const MainChatInterface = () => {
               isUserMessage: next.isUserMessage || false,
               userId: next.userId || null,
               animationDuration: `${duration}s`,
-              channelId: activeChannel?.id, // Track which channel this message belongs to
-              position: position, // Use collision-detected position
-              onPositionUpdate: updateMessagePosition, // Callback to update position
-              onRemove: removeMessagePosition // Callback to clean up position
+              channelId: activeChannel?.id // Track which channel this message belongs to
             };
             
             msgs = [...msgs, validatedMessage];
@@ -178,14 +82,10 @@ const MainChatInterface = () => {
       });
     };
 
-    // Dynamic queue processing speed based on congestion
-    const queueLength = messageQueue.length;
-    const baseInterval = 100;
-    const processInterval = Math.max(25, baseInterval - queueLength * 10); // Faster processing when backed up
-    
-    const interval = setInterval(processQueue, processInterval);
+    // Process queue faster for quicker message appearance after sending
+    const interval = setInterval(processQueue, Math.max(25, 100 - messageQueue.length * 15));
     return () => clearInterval(interval);
-  }, [messageQueue.length, activityLevel, activeChannel?.id, findAvailablePosition, updateMessagePosition, removeMessagePosition]);
+  }, [messageQueue.length, activityLevel]);
 
   // Update activity level calculation based on channel message flow
   useEffect(() => {
@@ -219,35 +119,6 @@ const MainChatInterface = () => {
 
     return () => clearInterval(interval);
   }, [messageTimestamps, activityTimeWindow, activityLevel]);
-
-  // Clean up messages that have completed their flow journey
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = Date.now();
-      
-      setMessages(prev => {
-        const newMessages = prev.filter(message => {
-          const messageTime = new Date(message.timestamp).getTime();
-          const timeAlive = now - messageTime;
-          const animationDuration = parseFloat(message.animationDuration) * 1000; // Convert to milliseconds
-          
-          // Remove messages that have completed their flow animation
-          const shouldKeep = timeAlive < animationDuration;
-          
-          // Clean up position tracking for removed messages
-          if (!shouldKeep) {
-            removeMessagePosition(message.id);
-          }
-          
-          return shouldKeep;
-        });
-        
-        return newMessages;
-      });
-    }, 2000); // Check every 2 seconds
-
-    return () => clearInterval(interval);
-  }, [removeMessagePosition]);
 
   // Initialize Firebase (only once)
   // Initialize Firebase app
@@ -405,12 +276,11 @@ const MainChatInterface = () => {
   }, [database]);
 
   // Effect for handling Firebase message listeners based on activeChannel
-  // TRUE FLOWING MESSAGING ARCHITECTURE:
-  // - Messages exist as moving entities in specific positions
-  // - Only NEW messages (after join) enter the flow
-  // - No historical message replay - only live flowing messages
-  // - Each message flows from start to end position once and disappears forever
-  // - Users see the current state of flowing messages, not old ones
+  // EPHEMERAL MESSAGING ARCHITECTURE:
+  // - Messages appear in stream for ~30-45 seconds then disappear forever
+  // - Recent messages (last 2 minutes) are shown on page load/refresh
+  // - Only messages with likes are saved to history for "Top Vibes"
+  // - Each channel operates independently with real-time streaming
   useEffect(() => {
     if (!database || !activeChannel || typeof activeChannel.id === 'undefined') {
       // Clear everything when no channel is active
@@ -422,23 +292,38 @@ const MainChatInterface = () => {
     const channelId = activeChannel.id.replace(/[.#$[\]]/g, '_');
     const messagesRef = ref(database, `channels/${channelId}/messages`);
     
-    // Clear current state when switching channels
+    // ALWAYS start fresh when switching channels - no restoration from storage
     setMessages([]);
     setMessageQueue([]);
-    messagePositions.current.clear(); // Clear position tracking for new channel
     currentChannelRef.current = channelId;
     
-    // Record when user joins - ONLY show messages created AFTER this point
-    const joinTimestamp = Date.now();
+    // Allow viewing messages from the last 2 minutes (for refresh persistence)
+    const twoMinutesAgo = Date.now() - (2 * 60 * 1000);
+    const joinTimestamp = twoMinutesAgo; // Show recent messages instead of only new ones
     
-    // Listen for NEW messages only (created after user joins)
-    const newMessagesQuery = query(
+    // Clean up very old processed IDs (older than 1 hour) but NEVER single characters like "e"
+    const oneHourAgo = Date.now() - (60 * 60 * 1000);
+    const currentIds = Array.from(permanentlyProcessedIds.current);
+    currentIds.forEach(id => {
+      // NEVER remove single character IDs like "e" - keep them permanently blocked
+      if (typeof id === 'string' && id.length === 1) {
+        return; // Skip cleanup for single characters
+      }
+      
+      // Only remove IDs that are clearly old timestamps AND very old
+      if (!isNaN(id) && id.length > 10 && parseInt(id) < oneHourAgo) {
+        permanentlyProcessedIds.current.delete(id);
+      }
+    });
+
+    // Query for recent messages (last 2 minutes) to show on refresh
+    const recentMessagesQuery = query(
       messagesRef,
       orderByChild('timestamp'),
       startAt(new Date(joinTimestamp).toISOString())
     );
 
-    const addListener = onChildAdded(newMessagesQuery, (snapshot) => {
+    const addListener = onChildAdded(recentMessagesQuery, (snapshot) => {
       const newMessage = snapshot.val();
       const id = snapshot.key;
       
@@ -453,18 +338,27 @@ const MainChatInterface = () => {
         return; // Ignore messages if we've switched channels
       }
       
-      // Only process truly NEW messages (created after user joined)
+      // Additional safety: Check if message is recent enough to display
       const messageTime = new Date(newMessage.timestamp).getTime();
-      const isNewMessage = messageTime >= joinTimestamp;
+      const now = Date.now();
+      const isRecentEnough = messageTime >= joinTimestamp; // Within last 2 minutes
       
-      if (!permanentlyProcessedIds.current.has(id) && isNewMessage) {
+      if (!permanentlyProcessedIds.current.has(id) && isRecentEnough) {
         // Mark as permanently processed immediately when adding to queue
         permanentlyProcessedIds.current.add(id);
-        setMessageQueue(q => [...q, { ...newMessage, id, channelId }]);
+        
+        // Calculate remaining display time for existing messages
+        const timeAlive = now - messageTime;
+        const maxDisplayTime = 45000; // 45 seconds max display time
+        
+        // Only add if the message still has display time left
+        if (timeAlive < maxDisplayTime) {
+          setMessageQueue(q => [...q, { ...newMessage, id, channelId }]);
+        }
       }
     });
 
-    const changeListener = onChildChanged(newMessagesQuery, (snapshot) => {
+    const changeListener = onChildChanged(recentMessagesQuery, (snapshot) => {
       const updated = snapshot.val();
       const id = snapshot.key;
       

@@ -126,7 +126,7 @@ const MainChatInterface = () => {
     }
   }, []);
 
-  // Process messages from queue with dynamic spacing
+  // Process messages from queue
   useEffect(() => {
     if (messageQueue.length === 0) return;
 
@@ -138,15 +138,9 @@ const MainChatInterface = () => {
         setMessages(msgs => {
           const exists = msgs.some(m => m.id === next.id);
           if (!exists && next && next.id && typeof next === 'object') {
-            // Dynamic speed adjustment based on congestion
-            const congestionLevel = Math.min(msgs.length / 10, 1); // 0-1 based on active messages
-            const baseMinDuration = 15;
-            const baseMaxDuration = 45;
-            
-            // Speed up when congested, slow down when sparse
-            const minDuration = baseMinDuration * (1 - congestionLevel * 0.3); // Up to 30% faster
-            const maxDuration = baseMaxDuration * (1 + congestionLevel * 0.2); // Up to 20% slower
-            
+            // Slower base speeds with better scaling
+            const minDuration = 15; // Faster for high activity
+            const maxDuration = 45; // Much slower for low activity
             const duration = maxDuration - ((activityLevel - 1) / 4) * (maxDuration - minDuration);
             
             // Find optimal position with collision detection
@@ -178,14 +172,10 @@ const MainChatInterface = () => {
       });
     };
 
-    // Dynamic queue processing speed based on congestion
-    const queueLength = messageQueue.length;
-    const baseInterval = 100;
-    const processInterval = Math.max(25, baseInterval - queueLength * 10); // Faster processing when backed up
-    
-    const interval = setInterval(processQueue, processInterval);
+    // Process queue faster for quicker message appearance after sending
+    const interval = setInterval(processQueue, Math.max(25, 100 - messageQueue.length * 15));
     return () => clearInterval(interval);
-  }, [messageQueue.length, activityLevel, activeChannel?.id, findAvailablePosition, updateMessagePosition, removeMessagePosition]);
+  }, [messageQueue.length, activityLevel]);
 
   // Update activity level calculation based on channel message flow
   useEffect(() => {
@@ -425,7 +415,6 @@ const MainChatInterface = () => {
     // Clear current state when switching channels
     setMessages([]);
     setMessageQueue([]);
-    messagePositions.current.clear(); // Clear position tracking for new channel
     currentChannelRef.current = channelId;
     
     // Record when user joins - ONLY show messages created AFTER this point

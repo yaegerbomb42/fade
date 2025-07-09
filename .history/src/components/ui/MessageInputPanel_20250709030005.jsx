@@ -338,7 +338,9 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
           <button
             type="submit"
             disabled={!message.trim() || !activeChannel || cooldownTime > 0 || isReloading}
-            className={`glass-button px-6 py-3 bg-gradient-to-r from-primary to-secondary text-text-primary font-medium hover:from-primary/80 hover:to-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 relative`}
+            className={`glass-button px-6 py-3 bg-gradient-to-r from-primary to-secondary text-text-primary font-medium hover:from-primary/80 hover:to-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 ${
+              isReloading ? 'animate-spin' : ''
+            }`}
           >
             {cooldownTime > 0 && tempBanEnd > Date.now() ? (
               <span className="text-sm font-mono">
@@ -346,10 +348,10 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
                  cooldownTime >= 60 ? `${Math.floor(cooldownTime / 60)}m ${cooldownTime % 60}s` :
                  `${cooldownTime}s`}
               </span>
+            ) : isReloading ? (
+              <Icon name="RotateCw" size={18} className="animate-spin" />
             ) : (
-              <div className={`relative ${isReloading ? 'send-glow' : ''}`}>
-                <Icon name="Send" size={18} />
-              </div>
+              <Icon name="Send" size={18} />
             )}
           </button>
         </form>
@@ -362,6 +364,29 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
               cooldownTime >= 60 ? `${Math.floor(cooldownTime / 60)}m ${cooldownTime % 60}s` :
               `${cooldownTime}s`
             }
+          </div>
+        )}
+
+        {/* Violation warning */}
+        {violationCount > 0 && violationCount < 4 && tempBanEnd <= Date.now() && (
+          <div className="mt-2 p-2 glass-panel bg-accent/20 border-accent/40 text-accent text-xs text-center">
+            Spam warning: {violationCount}/4 violations. Slow down to avoid temp ban.
+          </div>
+        )}
+
+        {/* Reload message */}
+        {isReloading && tempBanEnd <= Date.now() && (
+          <div className="flex items-center gap-2 mt-2 text-xs text-primary">
+            <Icon name="RotateCw" size={12} className="animate-spin" />
+            <span>Reloading... please wait {cooldownTime} second{cooldownTime !== 1 ? 's' : ''}</span>
+          </div>
+        )}
+
+        {/* Cooldown message for temp ban */}
+        {cooldownTime > 0 && tempBanEnd > Date.now() && (
+          <div className="flex items-center gap-2 mt-2 text-xs text-error">
+            <Icon name="Clock" size={12} />
+            <span>Temp banned - wait {cooldownTime} second{cooldownTime !== 1 ? 's' : ''} before messaging</span>
           </div>
         )}
       </div>

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from 'components/AppIcon';
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, onChildAdded, onChildChanged, off, push as firebasePush, runTransaction, onValue, serverTimestamp, onDisconnect, query, orderByChild, startAt } from 'firebase/database';
+import { getDatabase, ref, onChildAdded, onChildChanged, off, push as firebasePush, runTransaction, onValue, serverTimestamp, onDisconnect, query, orderByChild, startAt, limitToLast } from 'firebase/database';
 import ChannelSelector from 'components/ui/ChannelSelector';
 import StatisticsPanel from 'components/ui/StatisticsPanel';
 import MessageInputPanel from 'components/ui/MessageInputPanel';
@@ -26,7 +26,6 @@ const MainChatInterface = () => {
   const [messages, setMessages] = useState([]);
   const [messageQueue, setMessageQueue] = useState([]);
   const permanentlyProcessedIds = useRef(new Set());
-  const messagePositions = useRef(new Map()); // Track active message positions for collision detection
   // Remove channelMessages - it's causing cross-contamination
   const [activeChannel, setActiveChannel] = useState({ id: 'vibes', name: 'Just Vibes' });
   const [isTyping, setIsTyping] = useState(false);
@@ -43,90 +42,7 @@ const MainChatInterface = () => {
   const presenceRef = useRef(null);
   const currentChannelRef = useRef(null); // Track current channel for cleanup
 
-  // Collision detection and positioning logic
-  const findAvailablePosition = useCallback((messageId, preferredLane = null) => {
-    const lanes = 6;
-    const laneHeight = 70 / lanes;
-    const messageHeight = 8; // Approximate height percentage of a message bubble
-    const minSpacing = 12; // Minimum vertical spacing between messages
-    
-    // Get current active positions
-    const activePositions = Array.from(messagePositions.current.values());
-    
-    // Try preferred lane first, then others
-    const lanesToTry = preferredLane !== null 
-      ? [preferredLane, ...Array.from({length: lanes}, (_, i) => i).filter(i => i !== preferredLane)]
-      : Array.from({length: lanes}, (_, i) => i);
-    
-    for (const lane of lanesToTry) {
-      const baseTop = 20 + (lane * laneHeight);
-      
-      // Try different vertical positions within the lane
-      const positions = [
-        baseTop, // Center of lane
-        baseTop - 3, // Slightly above center
-        baseTop + 3, // Slightly below center
-        baseTop - 6, // Further above
-        baseTop + 6, // Further below
-      ];
-      
-      for (const top of positions) {
-        // Ensure position is within bounds
-        if (top < 15 || top > 80) continue;
-        
-        // Check for collisions with existing messages
-        const hasCollision = activePositions.some(pos => {
-          const verticalDistance = Math.abs(pos.top - top);
-          const horizontalOverlap = pos.left > 80; // Messages still in visible area
-          return horizontalOverlap && verticalDistance < minSpacing;
-        });
-        
-        if (!hasCollision) {
-          const position = {
-            lane,
-            verticalOffset: top - baseTop,
-            horizontalStart: 100 + Math.random() * 5, // Small random start variation
-            top,
-            left: 100 + Math.random() * 5
-          };
-          
-          // Store position for collision tracking
-          messagePositions.current.set(messageId, position);
-          
-          return position;
-        }
-      }
-    }
-    
-    // If no collision-free position found, use a delayed position
-    const fallbackLane = Math.floor(Math.random() * lanes);
-    const baseTop = 20 + (fallbackLane * laneHeight);
-    const position = {
-      lane: fallbackLane,
-      verticalOffset: 0,
-      horizontalStart: 120 + Math.random() * 10, // Start further right to create delay
-      top: baseTop,
-      left: 120 + Math.random() * 10
-    };
-    
-    messagePositions.current.set(messageId, position);
-    return position;
-  }, []);
-
-  // Clean up message positions when messages are removed
-  const removeMessagePosition = useCallback((messageId) => {
-    messagePositions.current.delete(messageId);
-  }, []);
-
-  // Update message positions as they move
-  const updateMessagePosition = useCallback((messageId, newLeft) => {
-    const position = messagePositions.current.get(messageId);
-    if (position) {
-      messagePositions.current.set(messageId, { ...position, left: newLeft });
-    }
-  }, []);
-
-  // Process messages from queue with dynamic spacing
+  // Process messages from queue
   useEffect(() => {
     if (messageQueue.length === 0) return;
 
@@ -138,19 +54,10 @@ const MainChatInterface = () => {
         setMessages(msgs => {
           const exists = msgs.some(m => m.id === next.id);
           if (!exists && next && next.id && typeof next === 'object') {
-            // Dynamic speed adjustment based on congestion
-            const congestionLevel = Math.min(msgs.length / 10, 1); // 0-1 based on active messages
-            const baseMinDuration = 15;
-            const baseMaxDuration = 45;
-            
-            // Speed up when congested, slow down when sparse
-            const minDuration = baseMinDuration * (1 - congestionLevel * 0.3); // Up to 30% faster
-            const maxDuration = baseMaxDuration * (1 + congestionLevel * 0.2); // Up to 20% slower
-            
+            // Slower base speeds with better scaling
+            const minDuration = 15; // Faster for high activity
+            const maxDuration = 45; // Much slower for low activity
             const duration = maxDuration - ((activityLevel - 1) / 4) * (maxDuration - minDuration);
-            
-            // Find optimal position with collision detection
-            const position = findAvailablePosition(next.id, next.preferredLane);
             
             // Ensure message has required properties with defaults
             const validatedMessage = {
@@ -163,9 +70,11 @@ const MainChatInterface = () => {
               userId: next.userId || null,
               animationDuration: `${duration}s`,
               channelId: activeChannel?.id, // Track which channel this message belongs to
-              position: position, // Use collision-detected position
-              onPositionUpdate: updateMessagePosition, // Callback to update position
-              onRemove: removeMessagePosition // Callback to clean up position
+              position: next.position || { // Use server-provided position or generate default
+                lane: Math.floor(Math.random() * 6),
+                verticalOffset: Math.random() * 8 - 4,
+                horizontalStart: 100 + Math.random() * 10
+              }
             };
             
             msgs = [...msgs, validatedMessage];
@@ -178,14 +87,10 @@ const MainChatInterface = () => {
       });
     };
 
-    // Dynamic queue processing speed based on congestion
-    const queueLength = messageQueue.length;
-    const baseInterval = 100;
-    const processInterval = Math.max(25, baseInterval - queueLength * 10); // Faster processing when backed up
-    
-    const interval = setInterval(processQueue, processInterval);
+    // Process queue faster for quicker message appearance after sending
+    const interval = setInterval(processQueue, Math.max(25, 100 - messageQueue.length * 15));
     return () => clearInterval(interval);
-  }, [messageQueue.length, activityLevel, activeChannel?.id, findAvailablePosition, updateMessagePosition, removeMessagePosition]);
+  }, [messageQueue.length, activityLevel]);
 
   // Update activity level calculation based on channel message flow
   useEffect(() => {
@@ -220,34 +125,25 @@ const MainChatInterface = () => {
     return () => clearInterval(interval);
   }, [messageTimestamps, activityTimeWindow, activityLevel]);
 
-  // Clean up messages that have completed their flow journey
+  // Clean up expired messages based on position flow, not time
   useEffect(() => {
     const interval = setInterval(() => {
-      const now = Date.now();
-      
+      // Remove messages that have completed their animation cycle
+      // Keep the most recent 20 messages in the flow regardless of age
       setMessages(prev => {
-        const newMessages = prev.filter(message => {
-          const messageTime = new Date(message.timestamp).getTime();
-          const timeAlive = now - messageTime;
-          const animationDuration = parseFloat(message.animationDuration) * 1000; // Convert to milliseconds
-          
-          // Remove messages that have completed their flow animation
-          const shouldKeep = timeAlive < animationDuration;
-          
-          // Clean up position tracking for removed messages
-          if (!shouldKeep) {
-            removeMessagePosition(message.id);
-          }
-          
-          return shouldKeep;
-        });
+        if (prev.length <= 20) return prev;
         
-        return newMessages;
+        // Sort by timestamp and keep most recent 20
+        const sorted = [...prev].sort((a, b) => 
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        );
+        
+        return sorted.slice(0, 20);
       });
-    }, 2000); // Check every 2 seconds
+    }, 10000); // Check every 10 seconds
 
     return () => clearInterval(interval);
-  }, [removeMessagePosition]);
+  }, []);
 
   // Initialize Firebase (only once)
   // Initialize Firebase app
@@ -425,7 +321,6 @@ const MainChatInterface = () => {
     // Clear current state when switching channels
     setMessages([]);
     setMessageQueue([]);
-    messagePositions.current.clear(); // Clear position tracking for new channel
     currentChannelRef.current = channelId;
     
     // Record when user joins - ONLY show messages created AFTER this point

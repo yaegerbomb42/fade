@@ -137,24 +137,6 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
     startCooldownTimer(banDuration);
   };
 
-  const startReloadAnimation = () => {
-    setIsReloading(true);
-    setCooldownTime(2);
-    
-    const timer = setInterval(() => {
-      setCooldownTime(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          setIsReloading(false);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    
-    setCooldownTimer(timer);
-  };
-
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (!message.trim() || !nickname.trim() || !activeChannel) return;
@@ -166,28 +148,15 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
       return;
     }
     
-    // Check if already in cooldown/reload state
-    if (cooldownTime > 0 || isReloading) {
-      return;
-    }
-    
     const timeSinceLastMessage = now - lastMessageTime;
     const isSameMessage = message.trim() === lastMessage;
     
     // Check for spam (same message or too frequent)
     if (isSameMessage || timeSinceLastMessage < 2000) {
-      // Increment violation count and apply temp ban if needed
+      // Increment violation count and apply temp ban
       const newViolationCount = violationCount + 1;
       setViolationCount(newViolationCount);
-      localStorage.setItem('fade-violations', newViolationCount.toString());
-      
-      // Only apply temp ban if violations reach 4+
       applyTempBan(newViolationCount);
-      
-      // If not temp banned, still show reload animation
-      if (newViolationCount < 4) {
-        startReloadAnimation();
-      }
       return;
     }
     
@@ -208,9 +177,6 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
     if (typingTimeout) {
       clearTimeout(typingTimeout);
     }
-    
-    // Always show reload animation after sending a message
-    startReloadAnimation();
   };
 
   const handleKeyPress = (e) => {
@@ -301,11 +267,9 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
               onChange={handleMessageChange}
               onKeyPress={handleKeyPress}
               placeholder={activeChannel ? `Send a message to #${activeChannel.name}...` : "Select a channel to start messaging..."}
-              className={`w-full glass-panel px-4 py-3 bg-glass-surface/80 border-glass-border text-text-primary placeholder-text-secondary focus:outline-none focus:border-primary/50 transition-all duration-300 resize-none ${
-                isReloading ? 'animate-pulse' : ''
-              }`}
+              className="w-full glass-panel px-4 py-3 bg-glass-surface/80 border-glass-border text-text-primary placeholder-text-secondary focus:outline-none focus:border-primary/50 transition-all duration-300 resize-none"
               rows="1"
-              disabled={!activeChannel || cooldownTime > 0 || isReloading}
+              disabled={!activeChannel || cooldownTime > 0}
             />
             
             {/* Character and line counter */}
@@ -315,19 +279,13 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
               </div>
             )}
             
-            {/* Cooldown/Reload Progress Bar */}
-            {(cooldownTime > 0 || isReloading) && (
+            {/* Cooldown Progress Bar */}
+            {cooldownTime > 0 && (
               <div className="absolute bottom-0 left-0 right-0 h-1 bg-glass-border rounded-b overflow-hidden">
                 <div 
-                  className={`h-full transition-all duration-1000 ease-linear ${
-                    tempBanEnd > Date.now() 
-                      ? 'bg-gradient-to-r from-error to-accent' 
-                      : 'bg-gradient-to-r from-primary to-secondary'
-                  }`}
+                  className="h-full bg-gradient-to-r from-error to-accent transition-all duration-1000 ease-linear"
                   style={{ 
-                    width: isReloading || cooldownTime <= 2 
-                      ? `${((2 - cooldownTime) / 2) * 100}%`
-                      : `${((Math.max(cooldownTime - 2, 0)) / Math.max(tempBanEnd > Date.now() ? tempBanEnd - Date.now() : 2000, 2000)) * 100}%`,
+                    width: `${((2 - cooldownTime) / 2) * 100}%`,
                     transition: cooldownTime === 2 ? 'none' : 'width 1s linear'
                   }}
                 />
@@ -337,19 +295,17 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
 
           <button
             type="submit"
-            disabled={!message.trim() || !activeChannel || cooldownTime > 0 || isReloading}
-            className={`glass-button px-6 py-3 bg-gradient-to-r from-primary to-secondary text-text-primary font-medium hover:from-primary/80 hover:to-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 relative`}
+            disabled={!message.trim() || !activeChannel || cooldownTime > 0}
+            className="glass-button px-6 py-3 bg-gradient-to-r from-primary to-secondary text-text-primary font-medium hover:from-primary/80 hover:to-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
           >
-            {cooldownTime > 0 && tempBanEnd > Date.now() ? (
+            {cooldownTime > 0 ? (
               <span className="text-sm font-mono">
                 {cooldownTime >= 3600 ? `${Math.floor(cooldownTime / 3600)}h ${Math.floor((cooldownTime % 3600) / 60)}m` :
                  cooldownTime >= 60 ? `${Math.floor(cooldownTime / 60)}m ${cooldownTime % 60}s` :
                  `${cooldownTime}s`}
               </span>
             ) : (
-              <div className={`relative ${isReloading ? 'send-glow' : ''}`}>
-                <Icon name="Send" size={18} />
-              </div>
+              <Icon name="Send" size={18} />
             )}
           </button>
         </form>
@@ -357,11 +313,18 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
         {/* Temp ban notification */}
         {tempBanEnd > Date.now() && (
           <div className="mt-2 p-2 glass-panel bg-error/20 border-error/40 text-error text-xs text-center">
-            Temp banned for spamming (4+ violations). Time remaining: {
+            Temp banned for spamming. Time remaining: {
               cooldownTime >= 3600 ? `${Math.floor(cooldownTime / 3600)}h ${Math.floor((cooldownTime % 3600) / 60)}m` :
               cooldownTime >= 60 ? `${Math.floor(cooldownTime / 60)}m ${cooldownTime % 60}s` :
               `${cooldownTime}s`
             }
+          </div>
+        )}
+
+        {cooldownTime > 0 && (
+          <div className="flex items-center gap-2 mt-2 text-xs text-error">
+            <Icon name="Clock" size={12} />
+            <span>Please wait {cooldownTime} second{cooldownTime !== 1 ? 's' : ''} before sending another message</span>
           </div>
         )}
       </div>
