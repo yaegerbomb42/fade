@@ -522,7 +522,7 @@ body {
 
 /* Credit Text Styles */
 .credit-container {
-  margin-top: -40px;
+  margin-top: 1px;
   transition: all 2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -550,14 +550,14 @@ body {
   font-weight: 200;
   text-align: center;
   font-family: 'Inter', sans-serif;
-  white-space: nowrap;
   
-  /* Same glow/glint effect as FADE logo but without blur */
+  /* Same glow/glint effect as FADE logo */
   background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.4) 30%, rgba(255,255,255,0.7) 45%, rgba(255,255,255,0.9) 50%, rgba(255,255,255,0.7) 55%, rgba(255,255,255,0.4) 70%, rgba(255,255,255,0));
   background-size: 400%;
   -webkit-background-clip: text;
   background-clip: text;
   animation: creditGlow 12s linear infinite;
+  text-shadow: 0 0 8px rgba(255,255,255,0.3), 0 0 12px rgba(255,255,255,0.2);
 }
 
 @keyframes creditGlow {

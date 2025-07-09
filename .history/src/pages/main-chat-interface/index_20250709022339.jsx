@@ -589,7 +589,7 @@ const MainChatInterface = () => {
             <ChannelSelector
               onChannelChange={handleChannelChange}
               activeChannel={activeChannel}
-              channelUserCounts={channelUserCounts}
+              channelUserCounts={{}} // TODO: Add real user count tracking
               className={activeChannel ? 'w-10 h-10' : ''}
             />
             {activeChannel && (

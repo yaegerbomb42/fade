@@ -54,24 +54,17 @@ const ChannelSelector = ({ onChannelChange, activeChannel, channelUserCounts = {
             <h3 className="text-sm font-semibold text-text-primary mb-1 text-center">Choose Your Vibe</h3>
             <p className="text-xs text-text-secondary opacity-80 text-center">Join others doing the same thing</p>
           </div>
-          {defaultChannels
-            .map(channel => ({
-              ...channel,
-              userCount: channelUserCounts[channel.id] || 0
-            }))
-            .sort((a, b) => b.userCount - a.userCount) // Sort by user count descending
-            .map((channel) => {
+          {defaultChannels.map((channel) => {
+            const userCount = channelUserCounts[channel.id] || 0;
             return (
               <button
                 key={channel.id}
                 onClick={() => handleChannelSelect(channel)}
-                className={`glass-button w-full px-3 py-2.5 text-sm flex items-center justify-between transition-all duration-300 ${activeChannel?.id === channel.id ? 'bg-primary/40 text-text-primary border-primary/50' : 'text-text-secondary hover:text-text-primary hover:bg-glass-highlight'}`}
+                className={`glass-button w-full px-3 py-2.5 text-sm flex flex-col items-center justify-center transition-all duration-300 ${activeChannel?.id === channel.id ? 'bg-primary/40 text-text-primary border-primary/50' : 'text-text-secondary hover:text-text-primary hover:bg-glass-highlight'}`}
               >
-                <span className="font-medium">{channel.name}</span>
-                {channel.userCount > 0 && (
-                  <span className="text-xs opacity-70 font-mono bg-white/10 px-2 py-1 rounded-full">
-                    {channel.userCount}
-                  </span>
+                <span className="font-medium text-center">{channel.name}</span>
+                {userCount > 0 && (
+                  <span className="text-xs opacity-70 font-mono mt-1">{userCount} online</span>
                 )}
               </button>
             );

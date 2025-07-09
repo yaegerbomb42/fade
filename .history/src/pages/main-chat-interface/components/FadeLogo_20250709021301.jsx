@@ -29,12 +29,6 @@ const FadeLogo = () => {
         <div className="l">D</div>
         <div className="l">E</div>
       </div>
-      
-      {/* Made by @yaeger credit - always visible directly under FADE */}
-      <div className="credit-container persistent">
-        <div className="credit-text">made by @yaeger</div>
-      </div>
-      
       {isInitialLoad && (
         <div className={`slogan-container ${showSlogan ? 'visible' : 'fading'}`}>
           <div className="slogan-text">
@@ -42,6 +36,13 @@ const FadeLogo = () => {
           </div>
         </div>
       )}
+      
+      {/* Made by @yaeger credit - always visible with glow effect */}
+      <div className="credit-container persistent">
+        <div className="credit-text">
+          made by @yaeger
+        </div>
+      </div>
     </section>
   );
 };

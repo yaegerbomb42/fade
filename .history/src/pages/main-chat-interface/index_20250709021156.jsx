@@ -36,7 +36,6 @@ const MainChatInterface = () => {
   const [showTopVibes, setShowTopVibes] = useState(false);
   const [channelVibesHistory, setChannelVibesHistory] = useState({}); // Only for top vibes
   const [activeUsers, setActiveUsers] = useState(1); // Start with 1 (current user)
-  const [channelUserCounts, setChannelUserCounts] = useState({}); // Track users per channel
   const activityTimeWindow = 30 * 1000; // 30 seconds
   const currentUserId = useRef(getUserId());
   const presenceRef = useRef(null);
@@ -227,53 +226,6 @@ const MainChatInterface = () => {
       runTransaction(userPresenceRef, () => null);
     };
   }, [database, activeChannel]);
-
-  // Track user counts across all channels for sorting
-  useEffect(() => {
-    if (!database) return;
-
-    const defaultChannels = [
-      'vibes', 'gaming', 'movies', 'sports', 'family-friendly', 
-      'random-chat', 'just-chatting', 'music', 'late-night'
-    ];
-
-    const unsubscribers = [];
-
-    defaultChannels.forEach(channelId => {
-      const sanitizedChannelId = channelId.replace(/[.#$[\]]/g, '_');
-      const channelPresenceRef = ref(database, `presence/${sanitizedChannelId}`);
-      
-      const unsubscribe = onValue(channelPresenceRef, (snapshot) => {
-        const presenceData = snapshot.val() || {};
-        const now = Date.now();
-        
-        // Count unique users who are truly active in this channel
-        const activeUserIds = Object.keys(presenceData).filter(userId => {
-          const userData = presenceData[userId];
-          if (!userData || !userData.online) return false;
-          
-          // Check if user has any active tabs in the last 30 seconds
-          const userTabs = userData.tabs || {};
-          const hasActiveTabs = Object.values(userTabs).some(tab => 
-            tab.active && (now - (tab.lastSeen || 0)) < 30000
-          );
-          
-          return hasActiveTabs || (now - (userData.lastSeen || 0)) < 30000;
-        });
-        
-        setChannelUserCounts(prev => ({
-          ...prev,
-          [channelId]: activeUserIds.length
-        }));
-      });
-      
-      unsubscribers.push(unsubscribe);
-    });
-
-    return () => {
-      unsubscribers.forEach(unsub => unsub());
-    };
-  }, [database]);
 
   // Effect for handling Firebase message listeners based on activeChannel
   // EPHEMERAL MESSAGING ARCHITECTURE:
@@ -589,7 +541,7 @@ const MainChatInterface = () => {
             <ChannelSelector
               onChannelChange={handleChannelChange}
               activeChannel={activeChannel}
-              channelUserCounts={channelUserCounts}
+              channelUserCounts={{}} // TODO: Add real user count tracking
               className={activeChannel ? 'w-10 h-10' : ''}
             />
             {activeChannel && (
