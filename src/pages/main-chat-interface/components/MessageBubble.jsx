@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import Icon from 'components/AppIcon';
 
-const MessageBubble = ({ message, index, onReaction, activityLevel = 1 }) => {
+const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1 }) => {
   // Randomize starting and ending horizontal positions
   const [position, setPosition] = useState({
     top: Math.random() * 60 + 20, // 20% to 80% from top
@@ -61,6 +61,14 @@ const MessageBubble = ({ message, index, onReaction, activityLevel = 1 }) => {
       clearTimeout(showTimer);
     };
   }, []);
+
+  useEffect(() => {
+    const durationMs = parseFloat(animationDuration) * 1000;
+    const removeTimer = setTimeout(() => {
+      onRemove && onRemove(message.id);
+    }, durationMs);
+    return () => clearTimeout(removeTimer);
+  }, [animationDuration, message.id, onRemove]);
 
   const handleThumbsUp = (e) => {
     e.stopPropagation();

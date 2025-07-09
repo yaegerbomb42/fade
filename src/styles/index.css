@@ -312,8 +312,7 @@ body {
 }
 
 /* Added FADE title styling */
-.h {
-  height: 100vh;
+.fade-logo-container {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -323,9 +322,8 @@ body {
 }
 
 .logo-small {
-  height: 60vh;
-  justify-content: flex-start;
-  padding-top: 2rem;
+  height: auto;
+  padding-top: 0.5rem;
 }
 
 .c {
@@ -337,7 +335,7 @@ body {
 }
 
 .l {
-  font-size: 12rem;
+  font-size: 6rem;
   line-height: 1;
   color: transparent;
   background: linear-gradient(90deg,#fff0,#fff3 30%,#fff9 45%,#fff 50%,#fff9 55%,#fff3 70%,#fff0);
@@ -372,7 +370,7 @@ body {
 
 @media(max-width:768px) {
   .l {
-    font-size: 6rem;
+    font-size: 3rem;
   }
   .c {
     gap: 10px;
