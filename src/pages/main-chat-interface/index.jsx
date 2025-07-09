@@ -16,7 +16,7 @@ const MainChatInterface = () => {
   const firebaseConfig = {
     apiKey: "AIzaSyAX1yMBRCUxfsArQWG5XzN4mx-sk4hgqu0",
     authDomain: "vibrant-bubble-chat.firebaseapp.com",
-    databaseURL: "https://aeueua-29dba-default-rtdb.firebaseio.com",
+    databaseURL: "https://vibrant-bubble-chat-default-rtdb.firebaseio.com",
     projectId: "vibrant-bubble-chat",
     storageBucket: "vibrant-bubble-chat.appspot.com",
     messagingSenderId: "1084858947817",
@@ -92,40 +92,25 @@ const MainChatInterface = () => {
   }, [firebaseConfig]); // firebaseConfig should be stable
 
   // Effect for handling Firebase message listeners based on activeChannel
-  // Removed unnecessary useEffect hook
-
   useEffect(() => {
+    // More robust check: ensure database exists, activeChannel exists, and activeChannel.id is present.
     if (!database || !activeChannel || typeof activeChannel.id === 'undefined') {
-      setMessages([]);
+      setMessages([]); // Clear messages if we can't subscribe or conditions aren't met
       return;
     }
 
-    const messagesRef = ref(database, `channels/${activeChannel.id}/messages`);
-    
-    const listener = onChildAdded(messagesRef, (snapshot) => {
+    const messagesRef = ref(database, `channels/${activeChannel.id}/messages`); // Use activeChannel.id and new ref()
+    setMessages([]); // Clear messages when channel changes or initially loads
+
+    const listener = onChildAdded(messagesRef, (snapshot) => { // Use new onChildAdded
       const newMessage = snapshot.val();
-
-      if (!firebaseApp) {
-        console.error("Firebase not initialized yet!");
-        return;
-      }
-
-      // Add new message to queue, ensuring no duplicates based on snapshot.key
-      setMessageQueue(prev => {
-        const messageId = snapshot.key;
-        const existsInQueue = prev.some(msg => msg.id === messageId);
-        if (existsInQueue) {
-          return prev;
-        }
-        return [...prev, { ...newMessage, id: messageId }];
-      });
+      setMessages(prev => [...prev, { ...newMessage, id: snapshot.key }]);
     });
 
     return () => {
-      off(messagesRef, 'child_added', listener);
-      setMessages([]); // Clear messages on channel change
+      off(messagesRef, 'child_added', listener); // Use new off()
     };
-  }, [activeChannel, database, firebaseApp]);
+  }, [activeChannel, database]); // Rerun when activeChannel or database changes
 
   const handleChannelChange = useCallback((channel) => {
     setActiveChannel(channel);
@@ -134,27 +119,28 @@ const MainChatInterface = () => {
   }, []);
 
   const handleSendMessage = useCallback((messageData) => {
-    if (!activeChannel || !activeChannel.id || !database) { // Check for activeChannel, activeChannel.id, and database
-      console.error("No active channel selected or database not initialized. Cannot send message.");
-      return;
-    }
+  if (!activeChannel || !activeChannel.id || !database) {
+    console.error("SendMessage: No active channel or DB not init.");
+    return;
+  }
 
-    const newMessage = {
-      ...messageData,
-      reactions: { thumbsUp: 0, thumbsDown: 0 },
-      isUserMessage: true, // Assuming this is still relevant
-      timestamp: new Date().toISOString(),
-    };
+  const newMessagePayload = {
+    ...messageData,
+    reactions: { thumbsUp: 0, thumbsDown: 0 },
+    isUserMessage: true,
+    timestamp: new Date().toISOString(),
+  };
 
-    const messagesRef = ref(database, `channels/${activeChannel.id}/messages`);
-    firebasePush(messagesRef, newMessage); // Use new firebasePush()
-  }, [activeChannel, database]); // Rerun when activeChannel or database changes
+  const messagesRef = ref(database, `channels/${activeChannel.id}/messages`);
+  firebasePush(messagesRef, newMessagePayload);
+  }, [activeChannel, database]);
 
   const [reactionStats, setReactionStats] = useState({
     totalLikes: 0,
     totalDislikes: 0,
     topMessages: []
   });
+
 
   const handleReaction = useCallback((messageId, reactionType) => {
     setMessages(prev => prev.map(msg => {
