@@ -155,13 +155,13 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
         {/* Vibey background overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
         
-        {/* Content container - reduced padding for compactness */}
-        <div className="relative z-10 p-2">
+        {/* Content container */}
+        <div className="relative z-10 p-3">
           
-          {/* Header with author and time - more compact */}
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-1">
-              <div className="w-4 h-4 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shadow-sm">
+          {/* Header with author and time */}
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shadow-sm">
                 <span className="text-xs font-bold text-white">
                   {(message.author || 'Anonymous').charAt(0).toUpperCase()}
                 </span>
@@ -180,7 +180,7 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
           </div>
 
           {/* Message Content - responsive wrapping with better margins */}
-          <div className="text-sm text-text-primary leading-snug mb-2" style={{
+          <div className="text-sm text-text-primary leading-snug mb-3" style={{
             wordBreak: 'break-word',
             overflowWrap: 'break-word',
             maxWidth: '100%',

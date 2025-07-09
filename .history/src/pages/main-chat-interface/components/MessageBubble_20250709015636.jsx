@@ -180,7 +180,7 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
           </div>
 
           {/* Message Content - responsive wrapping with better margins */}
-          <div className="text-sm text-text-primary leading-snug mb-2" style={{
+          <div className="text-sm text-text-primary leading-snug mb-3" style={{
             wordBreak: 'break-word',
             overflowWrap: 'break-word',
             maxWidth: '100%',

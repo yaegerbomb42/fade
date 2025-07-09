@@ -276,7 +276,7 @@ const MainChatInterface = () => {
       }
     });
 
-    const changeListener = onChildChanged(newMessagesQuery, (snapshot) => {
+    const changeListener = onChildChanged(messagesRef, (snapshot) => {
       const updated = snapshot.val();
       const id = snapshot.key;
       
@@ -300,8 +300,8 @@ const MainChatInterface = () => {
     });
 
     return () => {
-      off(newMessagesQuery, 'child_added', addListener);
-      off(newMessagesQuery, 'child_changed', changeListener);
+      off(messagesRef, 'child_added', addListener);
+      off(messagesRef, 'child_changed', changeListener);
     };
   }, [activeChannel, database]);
 

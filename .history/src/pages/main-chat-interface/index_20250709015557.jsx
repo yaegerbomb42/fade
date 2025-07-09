@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from 'components/AppIcon';
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, onChildAdded, onChildChanged, off, push as firebasePush, runTransaction, onValue, serverTimestamp, onDisconnect, query, orderByChild, startAt } from 'firebase/database';
+import { getDatabase, ref, onChildAdded, onChildChanged, off, push as firebasePush, runTransaction, onValue, serverTimestamp, onDisconnect } from 'firebase/database';
 import ChannelSelector from 'components/ui/ChannelSelector';
 import StatisticsPanel from 'components/ui/StatisticsPanel';
 import MessageInputPanel from 'components/ui/MessageInputPanel';
@@ -225,9 +225,6 @@ const MainChatInterface = () => {
     setMessageQueue([]);
     currentChannelRef.current = channelId;
     
-    // Record the timestamp when user joins channel - only show messages after this point
-    const joinTimestamp = Date.now();
-    
     // Clean up very old processed IDs (older than 1 hour) but NEVER single characters like "e"
     const oneHourAgo = Date.now() - (60 * 60 * 1000);
     const currentIds = Array.from(permanentlyProcessedIds.current);
@@ -243,14 +240,7 @@ const MainChatInterface = () => {
       }
     });
 
-    // Query for messages created AFTER the user joins the channel (truly ephemeral)
-    const newMessagesQuery = query(
-      messagesRef,
-      orderByChild('timestamp'),
-      startAt(new Date(joinTimestamp).toISOString())
-    );
-
-    const addListener = onChildAdded(newMessagesQuery, (snapshot) => {
+    const addListener = onChildAdded(messagesRef, (snapshot) => {
       const newMessage = snapshot.val();
       const id = snapshot.key;
       
@@ -265,18 +255,19 @@ const MainChatInterface = () => {
         return; // Ignore messages if we've switched channels
       }
       
-      // Additional safety: only process messages created after user joined
+      // Only process if not permanently processed AND message is recent (within last 10 minutes)
       const messageTime = new Date(newMessage.timestamp).getTime();
-      const isAfterJoin = messageTime >= joinTimestamp;
+      const tenMinutes = 10 * 60 * 1000;
+      const isRecent = Date.now() - messageTime < tenMinutes;
       
-      if (!permanentlyProcessedIds.current.has(id) && isAfterJoin) {
+      if (!permanentlyProcessedIds.current.has(id) && isRecent) {
         // Mark as permanently processed immediately when adding to queue
         permanentlyProcessedIds.current.add(id);
         setMessageQueue(q => [...q, { ...newMessage, id, channelId }]);
       }
     });
 
-    const changeListener = onChildChanged(newMessagesQuery, (snapshot) => {
+    const changeListener = onChildChanged(messagesRef, (snapshot) => {
       const updated = snapshot.val();
       const id = snapshot.key;
       
@@ -300,8 +291,8 @@ const MainChatInterface = () => {
     });
 
     return () => {
-      off(newMessagesQuery, 'child_added', addListener);
-      off(newMessagesQuery, 'child_changed', changeListener);
+      off(messagesRef, 'child_added', addListener);
+      off(messagesRef, 'child_changed', changeListener);
     };
   }, [activeChannel, database]);
 
@@ -566,8 +557,8 @@ const MainChatInterface = () => {
         messageCount={messages.length}
       />
 
-      {/* Message Display Area - expanded vertically with higher top padding to avoid FADE logo */}
-      <div className="fixed inset-0 pointer-events-none z-messages pt-24 pb-16">
+      {/* Message Display Area - expanded vertically with higher top padding */}
+      <div className="fixed inset-0 pointer-events-none z-messages pt-20 pb-16">
         {messages
           .filter(message => !message.channelId || message.channelId === activeChannel?.id) // Prevent cross-contamination
           .map((message, index) => (

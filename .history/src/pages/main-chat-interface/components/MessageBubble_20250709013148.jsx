@@ -13,14 +13,14 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
   const [position, setPosition] = useState(() => {
     // Use fibonacci-like spacing for better distribution
     const lanes = 6; // More lanes for better distribution
-    const laneHeight = 70 / lanes; // Distribute across 70% of screen height
+    const laneHeight = 75 / lanes; // Distribute across 75% of screen height (was 80%)
     const lane = index % lanes;
-    const baseTop = 20 + (lane * laneHeight); // Start at 20% of screen to avoid FADE logo
-    const randomOffset = (Math.random() - 0.5) * 6; // Smaller random offset
+    const baseTop = 15 + (lane * laneHeight); // Start at 15% of screen (lower to avoid FADE logo)
+    const randomOffset = (Math.random() - 0.5) * 8; // Smaller random offset
     
     return {
-      top: Math.max(20, Math.min(85, baseTop + randomOffset)), // Keep within bounds, more clearance from top
-      left: 100 + Math.random() * 10, // Start off-screen to the right
+      top: Math.max(15, Math.min(85, baseTop + randomOffset)), // Keep within bounds, avoid logo area
+      left: 100 + Math.random() * 15, // Start off-screen to the right
     };
   });
   const [isVisible, setIsVisible] = useState(false);
@@ -142,7 +142,7 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
 
   return (
     <div
-      className={`absolute w-56 pointer-events-auto ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'} message-bubble`}
+      className={`absolute w-64 pointer-events-auto ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'} message-bubble`}
       style={{
         top: `${position.top}%`,
         left: `${position.left}%`,
@@ -155,13 +155,13 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
         {/* Vibey background overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
         
-        {/* Content container - reduced padding for compactness */}
-        <div className="relative z-10 p-2">
+        {/* Content container */}
+        <div className="relative z-10 p-3">
           
-          {/* Header with author and time - more compact */}
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-1">
-              <div className="w-4 h-4 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shadow-sm">
+          {/* Header with author and time */}
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shadow-sm">
                 <span className="text-xs font-bold text-white">
                   {(message.author || 'Anonymous').charAt(0).toUpperCase()}
                 </span>
@@ -179,14 +179,33 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
             </span>
           </div>
 
-          {/* Message Content - responsive wrapping with better margins */}
-          <div className="text-sm text-text-primary leading-snug mb-2" style={{
+          {/* Message Content - wrap at 40 characters */}
+          <div className="text-sm text-text-primary leading-snug mb-3 break-words" style={{
             wordBreak: 'break-word',
             overflowWrap: 'break-word',
-            maxWidth: '100%',
-            whiteSpace: 'pre-wrap'
+            width: '320px', // Fixed width to ensure consistent 40-char wrapping
+            fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace',
+            letterSpacing: '-0.01em'
           }}>
-            {message.text || 'No message content'}
+            {(() => {
+              const text = message.text || 'No message content';
+              // Break text into lines of approximately 40 characters
+              const words = text.split(' ');
+              const lines = [];
+              let currentLine = '';
+              
+              for (const word of words) {
+                if ((currentLine + ' ' + word).length <= 40) {
+                  currentLine = currentLine ? currentLine + ' ' + word : word;
+                } else {
+                  if (currentLine) lines.push(currentLine);
+                  currentLine = word;
+                }
+              }
+              if (currentLine) lines.push(currentLine);
+              
+              return lines.join('\n');
+            })()}
           </div>
 
           {/* Reaction bar - easier to click, always visible */}

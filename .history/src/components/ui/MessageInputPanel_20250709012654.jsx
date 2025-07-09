@@ -269,7 +269,10 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
             {/* Character and line counter */}
             {message.length > 0 && (
               <div className="absolute bottom-2 right-2 text-xs text-text-secondary font-mono">
-                {message.length}/160
+                {(() => {
+                  const lines = message.split('\n');
+                  return `${message.length}/160 • ${lines.length}/4 lines`;
+                })()}
               </div>
             )}
             

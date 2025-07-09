@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from 'components/AppIcon';
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, onChildAdded, onChildChanged, off, push as firebasePush, runTransaction, onValue, serverTimestamp, onDisconnect, query, orderByChild, startAt } from 'firebase/database';
+import { getDatabase, ref, onChildAdded, onChildChanged, off, push as firebasePush, runTransaction, onValue, serverTimestamp, onDisconnect } from 'firebase/database';
 import ChannelSelector from 'components/ui/ChannelSelector';
 import StatisticsPanel from 'components/ui/StatisticsPanel';
 import MessageInputPanel from 'components/ui/MessageInputPanel';
@@ -26,7 +26,7 @@ const MainChatInterface = () => {
   const [messages, setMessages] = useState([]);
   const [messageQueue, setMessageQueue] = useState([]);
   const permanentlyProcessedIds = useRef(new Set());
-  // Remove channelMessages - it's causing cross-contamination
+  const channelMessages = useRef({}); // Store messages per channel for continuity
   const [activeChannel, setActiveChannel] = useState({ id: 'vibes', name: 'Just Vibes' });
   const [isTyping, setIsTyping] = useState(false);
   const [showTypingIndicator, setShowTypingIndicator] = useState(false);
@@ -34,12 +34,11 @@ const MainChatInterface = () => {
   const [messageTimestamps, setMessageTimestamps] = useState([]);
   const [activityLevel, setActivityLevel] = useState(1);
   const [showTopVibes, setShowTopVibes] = useState(false);
-  const [channelVibesHistory, setChannelVibesHistory] = useState({}); // Only for top vibes
+  const [channelVibesHistory, setChannelVibesHistory] = useState({});
   const [activeUsers, setActiveUsers] = useState(1); // Start with 1 (current user)
   const activityTimeWindow = 30 * 1000; // 30 seconds
   const currentUserId = useRef(getUserId());
   const presenceRef = useRef(null);
-  const currentChannelRef = useRef(null); // Track current channel for cleanup
 
   // Process messages from queue
   useEffect(() => {
@@ -67,11 +66,16 @@ const MainChatInterface = () => {
               reactions: next.reactions || { thumbsUp: 0, thumbsDown: 0 },
               isUserMessage: next.isUserMessage || false,
               userId: next.userId || null,
-              animationDuration: `${duration}s`,
-              channelId: activeChannel?.id // Track which channel this message belongs to
+              animationDuration: `${duration}s`
             };
             
             msgs = [...msgs, validatedMessage];
+            
+            // Store current messages for this channel
+            if (activeChannel && activeChannel.id) {
+              channelMessages.current[activeChannel.id] = msgs;
+            }
+            
             setMessageTimestamps(t => [...t, Date.now()]);
           }
           return msgs;
@@ -130,63 +134,31 @@ const MainChatInterface = () => {
     setDatabase(getDatabase(app));
   }, [firebaseConfig]); // firebaseConfig should be stable
 
-  // Track user presence for accurate active user count and channel activity detection
+  // Track user presence for accurate active user count
   useEffect(() => {
     if (!database || !activeChannel) return;
 
     const channelId = activeChannel.id.replace(/[.#$[\]]/g, '_');
     const userPresenceRef = ref(database, `presence/${channelId}/${currentUserId.current}`);
     const channelPresenceRef = ref(database, `presence/${channelId}`);
-    const channelActivityRef = ref(database, `activity/${channelId}`);
     
-    // Set user as online in current channel with timestamp
+    // Set user as online in current channel
     runTransaction(userPresenceRef, () => ({
       online: true,
-      lastSeen: Date.now(),
+      lastSeen: serverTimestamp(),
       channel: channelId
-    }));
-
-    // Heartbeat to keep presence updated every 10 seconds
-    const heartbeatInterval = setInterval(() => {
-      runTransaction(userPresenceRef, (current) => ({
-        ...current,
-        lastSeen: Date.now(),
-        online: true
-      }));
-    }, 10000);
-
-    // Update channel activity
-    runTransaction(channelActivityRef, () => ({
-      lastActivity: serverTimestamp(),
-      hasActiveUsers: true
     }));
 
     // Remove user when they disconnect
     onDisconnect(userPresenceRef).remove();
-    onDisconnect(channelActivityRef).update({
-      hasActiveUsers: false
-    });
 
-    // Listen for presence changes in current channel with improved accuracy
+    // Listen for presence changes in current channel
     const unsubscribe = onValue(channelPresenceRef, (snapshot) => {
       const presenceData = snapshot.val() || {};
-      const now = Date.now();
-      
-      // Filter for truly active users (online and recent)
-      const activeUserIds = Object.keys(presenceData).filter(userId => {
-        const userData = presenceData[userId];
-        if (!userData || !userData.online) return false;
-        
-        // Consider users active if they were seen in the last 30 seconds
-        const lastSeen = userData.lastSeen;
-        if (typeof lastSeen === 'number') {
-          return (now - lastSeen) < 30000; // 30 seconds
-        }
-        
-        return true; // If no timestamp, consider active
-      });
-      
-      setActiveUsers(Math.max(1, activeUserIds.length));
+      const activeUserCount = Object.keys(presenceData).filter(userId => 
+        presenceData[userId]?.online
+      ).length;
+      setActiveUsers(Math.max(1, activeUserCount)); // Always show at least 1
     });
 
     // Store reference for cleanup
@@ -194,7 +166,6 @@ const MainChatInterface = () => {
 
     return () => {
       unsubscribe();
-      clearInterval(heartbeatInterval);
       // Remove user presence when leaving channel
       if (presenceRef.current) {
         runTransaction(presenceRef.current, () => null);
@@ -203,33 +174,27 @@ const MainChatInterface = () => {
   }, [database, activeChannel]);
 
   // Effect for handling Firebase message listeners based on activeChannel
-  // EPHEMERAL MESSAGING ARCHITECTURE:
-  // - Messages appear in stream for ~30-45 seconds then disappear forever
-  // - NO storage or restoration of messages between channel switches
-  // - Only messages with likes are saved to history for "Top Vibes"
-  // - Each channel operates independently with real-time streaming
-  // - Recent messages only (last hour) to prevent old message resurrection
   useEffect(() => {
     if (!database || !activeChannel || typeof activeChannel.id === 'undefined') {
-      // Clear everything when no channel is active
       setMessages([]);
       setMessageQueue([]);
       return;
     }
 
-    const channelId = activeChannel.id.replace(/[.#$[\]]/g, '_');
-    const messagesRef = ref(database, `channels/${channelId}/messages`);
+    const messagesRef = ref(database, `channels/${activeChannel.id.replace(/[.#$[\]]/g, '_')}/messages`);
     
-    // ALWAYS start fresh when switching channels - no restoration from storage
-    setMessages([]);
+    // Restore messages for this channel if we have them
+    const channelKey = activeChannel.id;
+    if (channelMessages.current[channelKey]) {
+      setMessages(channelMessages.current[channelKey]);
+    } else {
+      setMessages([]);
+    }
     setMessageQueue([]);
-    currentChannelRef.current = channelId;
     
-    // Record the timestamp when user joins channel - only show messages after this point
-    const joinTimestamp = Date.now();
-    
-    // Clean up very old processed IDs (older than 1 hour) but NEVER single characters like "e"
-    const oneHourAgo = Date.now() - (60 * 60 * 1000);
+    // More conservative cleanup: only remove IDs older than 24 hours AND not single characters
+    // This prevents the "e" message from reappearing  
+    const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
     const currentIds = Array.from(permanentlyProcessedIds.current);
     currentIds.forEach(id => {
       // NEVER remove single character IDs like "e" - keep them permanently blocked
@@ -237,20 +202,13 @@ const MainChatInterface = () => {
         return; // Skip cleanup for single characters
       }
       
-      // Only remove IDs that are clearly old timestamps AND very old
-      if (!isNaN(id) && id.length > 10 && parseInt(id) < oneHourAgo) {
+      // Only remove IDs that are clearly timestamps (long numbers) AND very old
+      if (!isNaN(id) && id.length > 10 && parseInt(id) < twentyFourHoursAgo) {
         permanentlyProcessedIds.current.delete(id);
       }
     });
 
-    // Query for messages created AFTER the user joins the channel (truly ephemeral)
-    const newMessagesQuery = query(
-      messagesRef,
-      orderByChild('timestamp'),
-      startAt(new Date(joinTimestamp).toISOString())
-    );
-
-    const addListener = onChildAdded(newMessagesQuery, (snapshot) => {
+    const addListener = onChildAdded(messagesRef, (snapshot) => {
       const newMessage = snapshot.val();
       const id = snapshot.key;
       
@@ -260,23 +218,15 @@ const MainChatInterface = () => {
         return;
       }
       
-      // Check if this message is for current channel (prevent cross-contamination)
-      if (currentChannelRef.current !== channelId) {
-        return; // Ignore messages if we've switched channels
-      }
-      
-      // Additional safety: only process messages created after user joined
-      const messageTime = new Date(newMessage.timestamp).getTime();
-      const isAfterJoin = messageTime >= joinTimestamp;
-      
-      if (!permanentlyProcessedIds.current.has(id) && isAfterJoin) {
+      // ONLY check permanentlyProcessedIds - this is the source of truth
+      if (!permanentlyProcessedIds.current.has(id)) {
         // Mark as permanently processed immediately when adding to queue
         permanentlyProcessedIds.current.add(id);
-        setMessageQueue(q => [...q, { ...newMessage, id, channelId }]);
+        setMessageQueue(q => [...q, { ...newMessage, id }]);
       }
     });
 
-    const changeListener = onChildChanged(newMessagesQuery, (snapshot) => {
+    const changeListener = onChildChanged(messagesRef, (snapshot) => {
       const updated = snapshot.val();
       const id = snapshot.key;
       
@@ -286,22 +236,27 @@ const MainChatInterface = () => {
         return;
       }
       
-      // Check if this is for current channel
-      if (currentChannelRef.current !== channelId) {
-        return; // Ignore updates if we've switched channels
-      }
-      
-      // Update reactions for messages currently in the stream
-      setMessages(prev => prev.map(m => 
-        (m.id === id && m.channelId === channelId) 
-          ? { ...m, reactions: updated.reactions || m.reactions } 
-          : m
-      ));
+      // Update reactions for messages currently in the stream, regardless of processed status
+      setMessages(prev => {
+        const messageExists = prev.some(m => m.id === id);
+        if (messageExists) {
+          const updatedMessages = prev.map(m => (m.id === id ? { ...m, reactions: updated.reactions || m.reactions } : m));
+          
+          // Update channel messages store
+          if (activeChannel && activeChannel.id) {
+            channelMessages.current[activeChannel.id] = updatedMessages;
+          }
+          
+          return updatedMessages;
+        } else {
+          return prev;
+        }
+      });
     });
 
     return () => {
-      off(newMessagesQuery, 'child_added', addListener);
-      off(newMessagesQuery, 'child_changed', changeListener);
+      off(messagesRef, 'child_added', addListener);
+      off(messagesRef, 'child_changed', changeListener);
     };
   }, [activeChannel, database]);
 
@@ -354,7 +309,7 @@ const MainChatInterface = () => {
     };
   }, [messages, channelVibesHistory, activeChannel]);
 
-  // Update channel vibes history when messages expire - ONLY store messages with likes
+  // Update channel vibes history when messages expire
   useEffect(() => {
     if (!activeChannel) return;
     
@@ -365,16 +320,14 @@ const MainChatInterface = () => {
       setChannelVibesHistory(prev => {
         const channelHistory = prev[activeChannel.id] || [];
         
-        // Only add messages that have at least 1 like to history
-        const expiredMessagesWithLikes = messages.filter(msg => {
+        // Add current messages that are about to expire to history
+        const expiredMessages = messages.filter(msg => {
           const msgTime = new Date(msg.timestamp).getTime();
-          const isOld = now - msgTime > 30000; // Messages older than 30 seconds
-          const hasLikes = (msg.reactions?.thumbsUp || 0) > 0;
-          return isOld && hasLikes;
+          return now - msgTime > 30000; // Messages older than 30 seconds
         });
         
         // Combine with existing history and remove messages older than 1 hour
-        const updatedHistory = [...channelHistory, ...expiredMessagesWithLikes]
+        const updatedHistory = [...channelHistory, ...expiredMessages]
           .filter(msg => {
             const msgTime = new Date(msg.timestamp).getTime();
             return now - msgTime < oneHour;
@@ -396,14 +349,15 @@ const MainChatInterface = () => {
   }, [messages, activeChannel]);
 
   const handleChannelChange = useCallback((channel) => {
-    // Simply switch channels - no storage/restoration needed for ephemeral chat
-    setActiveChannel(channel);
-    setShowWelcome(false);
+    // Store current messages before switching
+    if (activeChannel && activeChannel.id) {
+      channelMessages.current[activeChannel.id] = messages;
+    }
     
-    // Clear current messages immediately for clean channel switch
-    setMessages([]);
-    setMessageQueue([]);
-  }, []);
+    setActiveChannel(channel);
+    // Messages will be restored by the useEffect hook listening to activeChannel
+    setShowWelcome(false);
+  }, [activeChannel, messages]);
 
   const handleSendMessage = useCallback((messageData) => {
   if (!activeChannel || !activeChannel.id || !database) {
@@ -464,27 +418,15 @@ const MainChatInterface = () => {
 
   const handleRemoveMessage = useCallback((id) => {
     setMessages(prev => {
-      const messageToRemove = prev.find(m => m.id === id);
+      const updatedMessages = prev.filter(m => m.id !== id);
       
-      // If message has likes, save it to history before removing
-      if (messageToRemove && (messageToRemove.reactions?.thumbsUp || 0) > 0 && activeChannel?.id) {
-        setChannelVibesHistory(prevHistory => {
-          const channelHistory = prevHistory[activeChannel.id] || [];
-          const messageExists = channelHistory.some(m => m.id === id);
-          
-          if (!messageExists) {
-            return {
-              ...prevHistory,
-              [activeChannel.id]: [...channelHistory, messageToRemove]
-            };
-          }
-          return prevHistory;
-        });
+      // Update channel messages store
+      if (activeChannel && activeChannel.id) {
+        channelMessages.current[activeChannel.id] = updatedMessages;
       }
       
-      return prev.filter(m => m.id !== id);
+      return updatedMessages;
     });
-    
     // Permanently mark as processed so it never comes back
     permanentlyProcessedIds.current.add(id);
   }, [activeChannel]);
@@ -566,21 +508,19 @@ const MainChatInterface = () => {
         messageCount={messages.length}
       />
 
-      {/* Message Display Area - expanded vertically with higher top padding to avoid FADE logo */}
-      <div className="fixed inset-0 pointer-events-none z-messages pt-24 pb-16">
-        {messages
-          .filter(message => !message.channelId || message.channelId === activeChannel?.id) // Prevent cross-contamination
-          .map((message, index) => (
-            <MessageBubble
-              key={message.id}
-              activityLevel={activityLevel}
-              message={message}
-              index={index}
-              totalMessages={messages.length}
-              onReaction={handleReaction}
-              onRemove={handleRemoveMessage}
-            />
-          ))}
+      {/* Message Display Area - expanded vertically with higher top padding */}
+      <div className="fixed inset-0 pointer-events-none z-messages pt-20 pb-16">
+        {messages.map((message, index) => (
+          <MessageBubble
+            key={message.id}
+            activityLevel={activityLevel}
+            message={message}
+            index={index}
+            totalMessages={messages.length}
+            onReaction={handleReaction}
+            onRemove={handleRemoveMessage}
+          />
+        ))}
       </div>
 
       {/* Typing Indicator */}

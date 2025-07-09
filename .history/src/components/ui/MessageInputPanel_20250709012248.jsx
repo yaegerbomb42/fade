@@ -54,10 +54,7 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
     if (nickname.trim()) {
       localStorage.setItem('fade-nickname', nickname.trim());
       setShowNicknameInput(false);
-      // Focus back to message input without disrupting the chat state
-      setTimeout(() => {
-        messageInputRef.current?.focus();
-      }, 100);
+      messageInputRef.current?.focus();
     }
   };
 
@@ -235,8 +232,7 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
           <button
             onClick={() => {
               setShowNicknameInput(true);
-              // Don't remove the nickname from localStorage immediately
-              // Only remove it when the user actually changes it
+              localStorage.removeItem('fade-nickname');
             }}
             className="glass-button px-2 py-1 text-xs text-text-secondary hover:text-text-primary transition-all duration-300"
           >
@@ -269,7 +265,11 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
             {/* Character and line counter */}
             {message.length > 0 && (
               <div className="absolute bottom-2 right-2 text-xs text-text-secondary font-mono">
-                {message.length}/160
+                {(() => {
+                  const lines = message.split('\n');
+                  const currentLine = lines[lines.length - 1] || '';
+                  return `${message.length}/160 • ${currentLine.length}/40 • ${lines.length}/4`;
+                })()}
               </div>
             )}
             

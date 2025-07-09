@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from 'components/AppIcon';
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, onChildAdded, onChildChanged, off, push as firebasePush, runTransaction, onValue, serverTimestamp, onDisconnect, query, orderByChild, startAt } from 'firebase/database';
+import { getDatabase, ref, onChildAdded, onChildChanged, off, push as firebasePush, runTransaction, onValue, serverTimestamp, onDisconnect } from 'firebase/database';
 import ChannelSelector from 'components/ui/ChannelSelector';
 import StatisticsPanel from 'components/ui/StatisticsPanel';
 import MessageInputPanel from 'components/ui/MessageInputPanel';
@@ -142,18 +142,9 @@ const MainChatInterface = () => {
     // Set user as online in current channel with timestamp
     runTransaction(userPresenceRef, () => ({
       online: true,
-      lastSeen: Date.now(),
+      lastSeen: serverTimestamp(),
       channel: channelId
     }));
-
-    // Heartbeat to keep presence updated every 10 seconds
-    const heartbeatInterval = setInterval(() => {
-      runTransaction(userPresenceRef, (current) => ({
-        ...current,
-        lastSeen: Date.now(),
-        online: true
-      }));
-    }, 10000);
 
     // Update channel activity
     runTransaction(channelActivityRef, () => ({
@@ -167,26 +158,13 @@ const MainChatInterface = () => {
       hasActiveUsers: false
     });
 
-    // Listen for presence changes in current channel with improved accuracy
+    // Listen for presence changes in current channel
     const unsubscribe = onValue(channelPresenceRef, (snapshot) => {
       const presenceData = snapshot.val() || {};
-      const now = Date.now();
-      
-      // Filter for truly active users (online and recent)
-      const activeUserIds = Object.keys(presenceData).filter(userId => {
-        const userData = presenceData[userId];
-        if (!userData || !userData.online) return false;
-        
-        // Consider users active if they were seen in the last 30 seconds
-        const lastSeen = userData.lastSeen;
-        if (typeof lastSeen === 'number') {
-          return (now - lastSeen) < 30000; // 30 seconds
-        }
-        
-        return true; // If no timestamp, consider active
-      });
-      
-      setActiveUsers(Math.max(1, activeUserIds.length));
+      const activeUserCount = Object.keys(presenceData).filter(userId => 
+        presenceData[userId]?.online
+      ).length;
+      setActiveUsers(Math.max(1, activeUserCount)); // Always show at least 1
     });
 
     // Store reference for cleanup
@@ -194,7 +172,6 @@ const MainChatInterface = () => {
 
     return () => {
       unsubscribe();
-      clearInterval(heartbeatInterval);
       // Remove user presence when leaving channel
       if (presenceRef.current) {
         runTransaction(presenceRef.current, () => null);
@@ -203,12 +180,6 @@ const MainChatInterface = () => {
   }, [database, activeChannel]);
 
   // Effect for handling Firebase message listeners based on activeChannel
-  // EPHEMERAL MESSAGING ARCHITECTURE:
-  // - Messages appear in stream for ~30-45 seconds then disappear forever
-  // - NO storage or restoration of messages between channel switches
-  // - Only messages with likes are saved to history for "Top Vibes"
-  // - Each channel operates independently with real-time streaming
-  // - Recent messages only (last hour) to prevent old message resurrection
   useEffect(() => {
     if (!database || !activeChannel || typeof activeChannel.id === 'undefined') {
       // Clear everything when no channel is active
@@ -225,9 +196,6 @@ const MainChatInterface = () => {
     setMessageQueue([]);
     currentChannelRef.current = channelId;
     
-    // Record the timestamp when user joins channel - only show messages after this point
-    const joinTimestamp = Date.now();
-    
     // Clean up very old processed IDs (older than 1 hour) but NEVER single characters like "e"
     const oneHourAgo = Date.now() - (60 * 60 * 1000);
     const currentIds = Array.from(permanentlyProcessedIds.current);
@@ -243,14 +211,7 @@ const MainChatInterface = () => {
       }
     });
 
-    // Query for messages created AFTER the user joins the channel (truly ephemeral)
-    const newMessagesQuery = query(
-      messagesRef,
-      orderByChild('timestamp'),
-      startAt(new Date(joinTimestamp).toISOString())
-    );
-
-    const addListener = onChildAdded(newMessagesQuery, (snapshot) => {
+    const addListener = onChildAdded(messagesRef, (snapshot) => {
       const newMessage = snapshot.val();
       const id = snapshot.key;
       
@@ -265,18 +226,19 @@ const MainChatInterface = () => {
         return; // Ignore messages if we've switched channels
       }
       
-      // Additional safety: only process messages created after user joined
+      // Only process if not permanently processed AND message is recent (within last hour)
       const messageTime = new Date(newMessage.timestamp).getTime();
-      const isAfterJoin = messageTime >= joinTimestamp;
+      const oneHour = 60 * 60 * 1000;
+      const isRecent = Date.now() - messageTime < oneHour;
       
-      if (!permanentlyProcessedIds.current.has(id) && isAfterJoin) {
+      if (!permanentlyProcessedIds.current.has(id) && isRecent) {
         // Mark as permanently processed immediately when adding to queue
         permanentlyProcessedIds.current.add(id);
         setMessageQueue(q => [...q, { ...newMessage, id, channelId }]);
       }
     });
 
-    const changeListener = onChildChanged(newMessagesQuery, (snapshot) => {
+    const changeListener = onChildChanged(messagesRef, (snapshot) => {
       const updated = snapshot.val();
       const id = snapshot.key;
       
@@ -300,8 +262,8 @@ const MainChatInterface = () => {
     });
 
     return () => {
-      off(newMessagesQuery, 'child_added', addListener);
-      off(newMessagesQuery, 'child_changed', changeListener);
+      off(messagesRef, 'child_added', addListener);
+      off(messagesRef, 'child_changed', changeListener);
     };
   }, [activeChannel, database]);
 
@@ -566,8 +528,8 @@ const MainChatInterface = () => {
         messageCount={messages.length}
       />
 
-      {/* Message Display Area - expanded vertically with higher top padding to avoid FADE logo */}
-      <div className="fixed inset-0 pointer-events-none z-messages pt-24 pb-16">
+      {/* Message Display Area - expanded vertically with higher top padding */}
+      <div className="fixed inset-0 pointer-events-none z-messages pt-20 pb-16">
         {messages
           .filter(message => !message.channelId || message.channelId === activeChannel?.id) // Prevent cross-contamination
           .map((message, index) => (

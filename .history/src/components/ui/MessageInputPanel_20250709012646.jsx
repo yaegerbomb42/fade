@@ -54,10 +54,7 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
     if (nickname.trim()) {
       localStorage.setItem('fade-nickname', nickname.trim());
       setShowNicknameInput(false);
-      // Focus back to message input without disrupting the chat state
-      setTimeout(() => {
-        messageInputRef.current?.focus();
-      }, 100);
+      messageInputRef.current?.focus();
     }
   };
 
@@ -269,7 +266,10 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
             {/* Character and line counter */}
             {message.length > 0 && (
               <div className="absolute bottom-2 right-2 text-xs text-text-secondary font-mono">
-                {message.length}/160
+                {(() => {
+                  const lines = message.split('\n');
+                  return `${message.length}/160 • ${lines.length}/4 lines`;
+                })()}
               </div>
             )}
             
