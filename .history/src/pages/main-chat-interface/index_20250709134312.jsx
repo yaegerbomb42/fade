@@ -35,11 +35,7 @@ const MainChatInterface = () => {
   const [activeChannel, setActiveChannel] = useState({ id: 'vibes', name: 'Just Vibes' });
   const [isTyping, setIsTyping] = useState(false);
   const [showTypingIndicator, setShowTypingIndicator] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(() => {
-    // Show welcome for first-time users or when no channel is selected
-    const hasVisited = localStorage.getItem('fade-has-visited');
-    return !hasVisited;
-  });
+  const [showWelcome, setShowWelcome] = useState(true);
   const [messageTimestamps, setMessageTimestamps] = useState([]);
   const [activityLevel, setActivityLevel] = useState(1);
   const [showTopVibes, setShowTopVibes] = useState(false);
@@ -1017,30 +1013,18 @@ const MainChatInterface = () => {
       />
 
       {/* Welcome Message */}
-      {showWelcome && (
+      {showWelcome && !activeChannel && (
         <div
-          className="fixed inset-0 flex items-center justify-center z-interface bg-black/20 backdrop-blur-sm"
-          onClick={() => {
-            setShowWelcome(false);
-            localStorage.setItem('fade-has-visited', 'true');
-          }}
+          className="fixed inset-0 flex items-center justify-center z-interface"
+          onClick={() => setShowWelcome(false)}
         >
-          <div className="glass-panel p-8 text-center max-w-lg fade-in vibey-bg glow-border pointer-events-auto mx-4">
-            <Icon name="MessageCircle" size={48} className="text-primary mx-auto mb-6" />
-            <h2 className="text-2xl font-heading font-semibold text-text-primary mb-4">
+          <div className="glass-panel p-8 text-center max-w-md fade-in vibey-bg glow-border pointer-events-auto">
+            <Icon name="MessageCircle" size={48} className="text-primary mx-auto mb-4" />
+            <h2 className="text-xl font-heading font-semibold text-text-primary mb-2">
               Welcome to FADE
             </h2>
-            <p className="text-sm text-text-secondary leading-relaxed mb-6">
-              Connect and react in the moment with friends or strangers. 
-              Watch messages flow across your screen as conversations unfold naturally. 
-              Join a vibe channel that matches your mood and let the community grow 
-              as you share fleeting moments together.
-            </p>
-            <div className="text-xs text-text-secondary/70 mb-4">
-              💫 Messages appear and fade away • 🎭 Choose your vibe • 👥 React with others
-            </div>
-            <p className="text-xs text-accent font-medium">
-              Tap anywhere to begin your journey
+            <p className="text-xs text-text-secondary">
+              Tap to enter.
             </p>
           </div>
         </div>

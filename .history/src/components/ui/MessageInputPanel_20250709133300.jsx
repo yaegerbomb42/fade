@@ -198,30 +198,26 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
   return (
     <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-interface w-full max-w-2xl px-4">
       {/* Emoji Hotbar */}
-      <div className="mb-2">
-        <div className="glass-panel p-2 fade-in">
+      <div className="mb-3">
+        <div className="glass-panel p-3 fade-in">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-text-secondary font-medium flex items-center gap-2">
-              <Icon name="Smile" size={14} />
-              Quick Emojis
-            </span>
+            <span className="text-xs text-text-secondary font-medium">Quick Emojis</span>
             <button
               onClick={() => setShowEmojiBar(!showEmojiBar)}
-              className="text-xs text-text-secondary hover:text-text-primary transition-colors px-2 py-1 rounded hover:bg-glass-surface/30"
+              className="text-xs text-text-secondary hover:text-text-primary transition-colors"
             >
-              {showEmojiBar ? '−' : '+'}
+              {showEmojiBar ? 'Hide' : 'Show'}
             </button>
           </div>
           
           {showEmojiBar && (
-            <div className="flex flex-wrap gap-1 justify-center">
+            <div className="grid grid-cols-10 gap-2">
               {emojiHotbar.map((emoji, index) => (
                 <button
                   key={index}
                   onClick={() => insertEmoji(emoji)}
-                  className="w-7 h-7 flex items-center justify-center text-base hover:bg-glass-surface/40 rounded transition-all duration-200 hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-8 h-8 flex items-center justify-center text-lg hover:bg-glass-surface/50 rounded transition-all duration-200 hover:scale-110"
                   disabled={isReloading}
-                  title={`Add ${emoji}`}
                 >
                   {emoji}
                 </button>

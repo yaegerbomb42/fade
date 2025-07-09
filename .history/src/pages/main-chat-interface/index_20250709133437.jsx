@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Icon from 'components/AppIcon';
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, onChildAdded, onChildChanged, off, push as firebasePush, runTransaction, onValue, serverTimestamp, onDisconnect, query, orderByChild, startAt, get } from 'firebase/database';
+import { getDatabase, ref, onChildAdded, onChildChanged, off, push as firebasePush, runTransaction, onValue, serverTimestamp, onDisconnect, query, orderByChild, startAt } from 'firebase/database';
 import ChannelSelector from 'components/ui/ChannelSelector';
 import StatisticsPanel from 'components/ui/StatisticsPanel';
 import MessageInputPanel from 'components/ui/MessageInputPanel';
@@ -12,12 +12,9 @@ import { getUserId } from '../../utils/userIdentity';
 import AnimatedBackground from './components/AnimatedBackground';
 import FadeLogo from './components/FadeLogo';
 import MessageBubble from './components/MessageBubble';
-import TopVibersSection from 'components/ui/TopVibesSection';
+import TopVibesSection from 'components/ui/TopVibesSection';
 
 const MainChatInterface = () => {
-  const { channelId: urlChannelId } = useParams();
-  const navigate = useNavigate();
-  
   const firebaseConfig = {
     apiKey: "AIzaSyAX1yMBRCUxfsArQWG5XzN4mx-sk4hgqu0",
     authDomain: "vibrant-bubble-chat.firebaseapp.com",
@@ -35,77 +32,17 @@ const MainChatInterface = () => {
   const [activeChannel, setActiveChannel] = useState({ id: 'vibes', name: 'Just Vibes' });
   const [isTyping, setIsTyping] = useState(false);
   const [showTypingIndicator, setShowTypingIndicator] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(() => {
-    // Show welcome for first-time users or when no channel is selected
-    const hasVisited = localStorage.getItem('fade-has-visited');
-    return !hasVisited;
-  });
+  const [showWelcome, setShowWelcome] = useState(true);
   const [messageTimestamps, setMessageTimestamps] = useState([]);
   const [activityLevel, setActivityLevel] = useState(1);
   const [showTopVibes, setShowTopVibes] = useState(false);
   const [channelVibesHistory, setChannelVibesHistory] = useState({}); // Only for top vibes
   const [activeUsers, setActiveUsers] = useState(1); // Start with 1 (current user)
   const [channelUserCounts, setChannelUserCounts] = useState({}); // Track users per channel
-  const [foreverStreamQueue, setForeverStreamQueue] = useState([]);
-  const [foreverStreamIndex, setForeverStreamIndex] = useState(0);
-  const [foreverStreamMessages, setForeverStreamMessages] = useState([]);
-  const MAX_FOREVER_STREAM_MESSAGES = 5000;
-  const MAX_ACTIVE_MESSAGES = 20; // Max messages on screen at once for forever stream
   const activityTimeWindow = 30 * 1000; // 30 seconds
   const currentUserId = useRef(getUserId());
   const presenceRef = useRef(null);
   const currentChannelRef = useRef(null); // Track current channel for cleanup
-
-  // Channel mapping for URL routing
-  const channelMap = {
-    'vibes': { id: 'vibes', name: 'Just Vibes' },
-    'deep-thoughts': { id: 'deep-thoughts', name: 'Deep Thoughts' },
-    'random-chat': { id: 'random-chat', name: 'Random Chat' },
-    'late-night': { id: 'late-night', name: 'Late Night' },
-    'creative-zone': { id: 'creative-zone', name: 'Creative Zone' },
-    'study-break': { id: 'study-break', name: 'Study Break' }
-  };
-
-  // Handle URL channel parameter
-  useEffect(() => {
-    if (urlChannelId && channelMap[urlChannelId]) {
-      setActiveChannel(channelMap[urlChannelId]);
-    }
-  }, [urlChannelId]);
-
-  // Share channel functionality
-  const shareChannel = async () => {
-    const shareUrl = `${window.location.origin}/channel/${activeChannel.id}`;
-    
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: `Join ${activeChannel.name} on Fade`,
-          text: `Join the conversation in ${activeChannel.name}!`,
-          url: shareUrl
-        });
-      } else {
-        await navigator.clipboard.writeText(shareUrl);
-        // Show a temporary notification
-        handleShareNotification();
-      }
-    } catch (error) {
-      // Fallback: copy to clipboard
-      try {
-        await navigator.clipboard.writeText(shareUrl);
-        handleShareNotification();
-      } catch (clipboardError) {
-        console.log('Share URL:', shareUrl);
-      }
-    }
-  };
-
-  const [showShareNotification, setShowShareNotification] = useState(false);
-  
-  const handleShareNotification = () => {
-    setShowShareNotification(true);
-    setTimeout(() => setShowShareNotification(false), 2000);
-  };
 
   // Collision detection and positioning logic
   const findAvailablePosition = useCallback((messageId, preferredLane = null) => {
@@ -202,25 +139,6 @@ const MainChatInterface = () => {
         setMessages(msgs => {
           const exists = msgs.some(m => m.id === next.id);
           if (!exists && next && next.id && typeof next === 'object') {
-            
-            // Special handling for Forever Stream channel
-            if (activeChannel?.id === 'forever-stream') {
-              // Add to forever stream storage
-              setForeverStreamMessages(prev => {
-                const updated = [...prev, next];
-                // Maintain max message limit
-                if (updated.length > MAX_FOREVER_STREAM_MESSAGES) {
-                  return updated.slice(-MAX_FOREVER_STREAM_MESSAGES);
-                }
-                return updated;
-              });
-              
-              // Only show if we have room for more active messages
-              if (msgs.length >= MAX_ACTIVE_MESSAGES) {
-                return msgs; // Don't add more if at capacity
-              }
-            }
-            
             // Dynamic speed adjustment based on congestion
             const congestionLevel = Math.min(msgs.length / 10, 1); // 0-1 based on active messages
             const baseMinDuration = 15;
@@ -505,44 +423,6 @@ const MainChatInterface = () => {
     const channelId = activeChannel.id.replace(/[.#$[\]]/g, '_');
     const messagesRef = ref(database, `channels/${channelId}/messages`);
     
-    // Special cleanup for Forever Stream to maintain message limit
-    if (activeChannel.id === 'forever-stream') {
-      // Check message count and cleanup if needed
-      const checkAndCleanup = async () => {
-        try {
-          const snapshot = await get(messagesRef);
-          
-          if (snapshot.exists()) {
-            const messages = snapshot.val();
-            const messageEntries = Object.entries(messages);
-            
-            if (messageEntries.length > MAX_FOREVER_STREAM_MESSAGES) {
-              // Sort by timestamp and remove oldest messages
-              const sorted = messageEntries.sort((a, b) => {
-                const timeA = new Date(a[1].timestamp).getTime();
-                const timeB = new Date(b[1].timestamp).getTime();
-                return timeA - timeB;
-              });
-              
-              const messagesToRemove = sorted.slice(0, messageEntries.length - MAX_FOREVER_STREAM_MESSAGES);
-              
-              // Remove old messages from database
-              messagesToRemove.forEach(([messageId]) => {
-                const messageToRemove = ref(database, `channels/${channelId}/messages/${messageId}`);
-                messageToRemove.remove().catch(console.error);
-              });
-              
-              console.log(`Forever Stream: Cleaned up ${messagesToRemove.length} old messages`);
-            }
-          }
-        } catch (error) {
-          console.error('Forever Stream cleanup error:', error);
-        }
-      };
-      
-      checkAndCleanup();
-    }
-    
     // Clear current state when switching channels
     setMessages([]);
     setMessageQueue([]);
@@ -551,34 +431,6 @@ const MainChatInterface = () => {
     
     // Record when user joins - ONLY show messages created AFTER this point
     const joinTimestamp = Date.now();
-    
-    // Special handling for Forever Stream - load existing messages for cycling
-    if (activeChannel.id === 'forever-stream') {
-      const loadExistingMessages = async () => {
-        try {
-          const snapshot = await get(messagesRef);
-          if (snapshot.exists()) {
-            const messages = snapshot.val();
-            const messageArray = Object.entries(messages)
-              .map(([id, message]) => ({ ...message, id }))
-              .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-              .slice(-1000); // Load last 1000 messages for cycling
-            
-            setForeverStreamMessages(messageArray);
-            setForeverStreamIndex(0);
-            console.log(`Forever Stream: Loaded ${messageArray.length} messages for cycling`);
-          }
-        } catch (error) {
-          console.error('Failed to load Forever Stream messages:', error);
-        }
-      };
-      
-      loadExistingMessages();
-    } else {
-      // Clear forever stream data when not in forever stream
-      setForeverStreamMessages([]);
-      setForeverStreamIndex(0);
-    }
     
     // Listen for NEW messages only (created after user joins)
     const newMessagesQuery = query(
@@ -642,14 +494,14 @@ const MainChatInterface = () => {
     };
   }, [activeChannel, database]);
 
-  // Calculate top vibers from current messages AND persist history
-  const topVibers = React.useMemo(() => {
+  // Calculate top vibes from current messages AND persist history
+  const topVibes = React.useMemo(() => {
     const now = Date.now();
     const oneMinute = 60 * 1000;
     const tenMinutes = 10 * 60 * 1000;
     const oneHour = 60 * 60 * 1000;
 
-    const getTopViberInPeriod = (period) => {
+    const getTopVibeInPeriod = (period) => {
       const cutoff = now - period;
       
       // Get current channel history
@@ -672,32 +524,22 @@ const MainChatInterface = () => {
       
       if (allPeriodMessages.length === 0) return null;
       
-      // Count messages per author
-      const authorCounts = {};
-      allPeriodMessages.forEach(msg => {
-        if (msg.author && msg.author !== 'Anonymous') {
-          authorCounts[msg.author] = (authorCounts[msg.author] || 0) + 1;
+      return allPeriodMessages.reduce((best, msg) => {
+        const score = (msg.reactions?.thumbsUp || 0) - (msg.reactions?.thumbsDown || 0);
+        const bestScore = best ? (best.reactions?.thumbsUp || 0) - (best.reactions?.thumbsDown || 0) : -1;
+        
+        // Only return messages that have at least 1 thumbs up
+        if (score > bestScore && (msg.reactions?.thumbsUp || 0) > 0) {
+          return msg;
         }
-      });
-      
-      // Find author with most messages
-      let topVriber = null;
-      let maxCount = 0;
-      
-      Object.entries(authorCounts).forEach(([author, count]) => {
-        if (count > maxCount) {
-          maxCount = count;
-          topVriber = { author, count };
-        }
-      });
-      
-      return topVriber;
+        return best;
+      }, null);
     };
 
     return {
-      lastMinute: getTopViberInPeriod(oneMinute),
-      last10Minutes: getTopViberInPeriod(tenMinutes),
-      lastHour: getTopViberInPeriod(oneHour)
+      lastMinute: getTopVibeInPeriod(oneMinute),
+      last10Minutes: getTopVibeInPeriod(tenMinutes),
+      lastHour: getTopVibeInPeriod(oneHour)
     };
   }, [messages, channelVibesHistory, activeChannel]);
 
@@ -747,13 +589,10 @@ const MainChatInterface = () => {
     setActiveChannel(channel);
     setShowWelcome(false);
     
-    // Update URL without page reload
-    navigate(`/channel/${channel.id}`, { replace: true });
-    
     // Clear current messages immediately for clean channel switch
     setMessages([]);
     setMessageQueue([]);
-  }, [navigate]);
+  }, []);
 
   const handleSendMessage = useCallback((messageData) => {
   if (!activeChannel || !activeChannel.id || !database) {
@@ -848,48 +687,6 @@ const MainChatInterface = () => {
     permanentlyProcessedIds.current.add(id);
   }, [activeChannel]);
 
-  // Forever Stream cycling logic
-  useEffect(() => {
-    if (activeChannel?.id !== 'forever-stream' || foreverStreamMessages.length === 0) {
-      return;
-    }
-
-    const interval = setInterval(() => {
-      setMessages(current => {
-        // Only cycle if we have fewer than max active messages
-        if (current.length < MAX_ACTIVE_MESSAGES && foreverStreamMessages.length > 0) {
-          const nextIndex = foreverStreamIndex % foreverStreamMessages.length;
-          const messageToAdd = foreverStreamMessages[nextIndex];
-          
-          // Check if this message is already active
-          const alreadyActive = current.some(m => m.originalId === messageToAdd.id);
-          if (alreadyActive) {
-            setForeverStreamIndex(prev => (prev + 1) % foreverStreamMessages.length);
-            return current;
-          }
-          
-          // Create a new instance of the message with unique ID
-          const cycledMessage = {
-            ...messageToAdd,
-            id: `${messageToAdd.id}_${Date.now()}_${Math.random()}`, // Unique ID for this cycle
-            originalId: messageToAdd.id, // Keep reference to original
-            timestamp: new Date().toISOString(), // Fresh timestamp for animation
-            position: findAvailablePosition(`${messageToAdd.id}_cycle`),
-            onPositionUpdate: updateMessagePosition,
-            onRemove: removeMessagePosition,
-            animationDuration: '25s' // Slightly faster for cycling
-          };
-          
-          setForeverStreamIndex(prev => (prev + 1) % foreverStreamMessages.length);
-          return [...current, cycledMessage];
-        }
-        return current;
-      });
-    }, 3000); // Add a new message every 3 seconds
-
-    return () => clearInterval(interval);
-  }, [activeChannel?.id, foreverStreamMessages, foreverStreamIndex, findAvailablePosition, updateMessagePosition, removeMessagePosition]);
-
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
       {/* Animated Background */}
@@ -912,34 +709,15 @@ const MainChatInterface = () => {
               className={activeChannel ? 'w-10 h-10' : ''}
             />
             {activeChannel && (
-              <>
-                <button
-                  onClick={shareChannel}
-                  className="glass-button p-2 hover:bg-glass-highlight transition-colors group relative"
-                  title="Share channel link"
-                >
-                  <Icon name="Share2" size={16} className="text-text-primary" />
-                </button>
-                <button
-                  onClick={() => setActiveChannel(null)}
-                  className="glass-button p-2 hover:bg-glass-highlight transition-colors"
-                  title="Minimize"
-                >
-                  <Icon name="Minimize2" size={16} className="text-text-primary" />
-                </button>
-              </>
+              <button
+                onClick={() => setActiveChannel(null)}
+                className="glass-button p-2 hover:bg-glass-highlight transition-colors"
+                title="Minimize"
+              >
+                <Icon name="Minimize2" size={16} className="text-text-primary" />
+              </button>
             )}
           </div>
-          
-          {/* Share notification */}
-          {showShareNotification && (
-            <div className="glass-panel p-2 bg-success/20 border-success/40 text-success text-xs animate-pulse">
-              <div className="flex items-center gap-2">
-                <Icon name="Check" size={12} />
-                <span>Link copied to clipboard!</span>
-              </div>
-            </div>
-          )}
           
           {/* Active Users Display */}
           {activeChannel && (
@@ -973,7 +751,7 @@ const MainChatInterface = () => {
                 </button>
               </div>
               {showTopVibes && (
-                <TopVibersSection vibers={topVibers} />
+                <TopVibesSection vibes={topVibes} />
               )}
             </div>
           )}
@@ -1017,30 +795,18 @@ const MainChatInterface = () => {
       />
 
       {/* Welcome Message */}
-      {showWelcome && (
+      {showWelcome && !activeChannel && (
         <div
-          className="fixed inset-0 flex items-center justify-center z-interface bg-black/20 backdrop-blur-sm"
-          onClick={() => {
-            setShowWelcome(false);
-            localStorage.setItem('fade-has-visited', 'true');
-          }}
+          className="fixed inset-0 flex items-center justify-center z-interface"
+          onClick={() => setShowWelcome(false)}
         >
-          <div className="glass-panel p-8 text-center max-w-lg fade-in vibey-bg glow-border pointer-events-auto mx-4">
-            <Icon name="MessageCircle" size={48} className="text-primary mx-auto mb-6" />
-            <h2 className="text-2xl font-heading font-semibold text-text-primary mb-4">
+          <div className="glass-panel p-8 text-center max-w-md fade-in vibey-bg glow-border pointer-events-auto">
+            <Icon name="MessageCircle" size={48} className="text-primary mx-auto mb-4" />
+            <h2 className="text-xl font-heading font-semibold text-text-primary mb-2">
               Welcome to FADE
             </h2>
-            <p className="text-sm text-text-secondary leading-relaxed mb-6">
-              Connect and react in the moment with friends or strangers. 
-              Watch messages flow across your screen as conversations unfold naturally. 
-              Join a vibe channel that matches your mood and let the community grow 
-              as you share fleeting moments together.
-            </p>
-            <div className="text-xs text-text-secondary/70 mb-4">
-              💫 Messages appear and fade away • 🎭 Choose your vibe • 👥 React with others
-            </div>
-            <p className="text-xs text-accent font-medium">
-              Tap anywhere to begin your journey
+            <p className="text-xs text-text-secondary">
+              Tap to enter.
             </p>
           </div>
         </div>

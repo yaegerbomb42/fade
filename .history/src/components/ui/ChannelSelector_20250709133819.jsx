@@ -66,18 +66,9 @@ const ChannelSelector = ({ onChannelChange, activeChannel, channelUserCounts = {
               <button
                 key={channel.id}
                 onClick={() => handleChannelSelect(channel)}
-                className={`glass-button w-full px-3 py-2.5 text-sm flex items-center justify-between transition-all duration-300 ${
-                  activeChannel?.id === channel.id 
-                    ? 'bg-primary/40 text-text-primary border-primary/50' 
-                    : 'text-text-secondary hover:text-text-primary hover:bg-glass-highlight'
-                } ${
-                  channel.special ? 'border-accent/50 bg-gradient-to-r from-primary/20 to-accent/20' : ''
-                }`}
+                className={`glass-button w-full px-3 py-2.5 text-sm flex items-center justify-between transition-all duration-300 ${activeChannel?.id === channel.id ? 'bg-primary/40 text-text-primary border-primary/50' : 'text-text-secondary hover:text-text-primary hover:bg-glass-highlight'}`}
               >
-                <div className="flex items-center gap-2">
-                  {channel.special && <span className="text-accent">∞</span>}
-                  <span className="font-medium">{channel.name}</span>
-                </div>
+                <span className="font-medium">{channel.name}</span>
                 {channel.userCount > 0 && (
                   <span className="text-xs opacity-70 font-mono bg-white/10 px-2 py-1 rounded-full">
                     {channel.userCount}
