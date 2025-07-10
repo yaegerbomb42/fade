@@ -619,30 +619,36 @@ body {
   }
 }
 
-/* Sending chat animation - smooth left to right wipe contained within input */
+/* Sending chat animation */
 .sending-overlay {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  inset: 0;
   border-radius: inherit;
   overflow: hidden;
-  background: linear-gradient(90deg, rgba(147, 51, 234, 0.08) 0%, rgba(147, 51, 234, 0.15) 100%);
-  transform: translateX(-100%);
-  animation: sendingWipe 1.5s ease-out;
-  pointer-events: none;
-  z-index: 2;
-  /* Ensure it respects the parent container bounds */
-  clip-path: inset(0);
+  background: linear-gradient(90deg, transparent 0%, rgba(147, 51, 234, 0.3) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: sendingFill 2s linear;
 }
 
-@keyframes sendingWipe {
+.sending-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: rgba(147, 51, 234, 0.9);
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: 10;
+  pointer-events: none;
+}
+
+@keyframes sendingFill {
   0% {
-    transform: translateX(-100%);
+    background-position: -200% 0;
   }
   100% {
-    transform: translateX(0);
+    background-position: 200% 0;
   }
 }
 

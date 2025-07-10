@@ -79,7 +79,7 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
 
   const emojiHotbar = [
     '😀', '😂', '🥰', '😎', '🤔', '😮', '😍', '🔥', '💯', '👍', 
-    '👎', '❤️', '💔', '😭', '😡', '🤯', '🙄', '😴', '👀'
+    '👎', '❤️', '💔', '😭', '😡', '🤯', '🙄', '😴', '🤮', '👀'
   ];
 
   const insertEmoji = (emoji) => {
@@ -198,9 +198,22 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
   return (
     <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-interface w-full max-w-2xl px-4">
       {/* Emoji Hotbar */}
-      {showEmojiBar && (
-        <div className="mb-2">
-          <div className="glass-panel p-2 fade-in">
+      <div className="mb-2">
+        <div className="glass-panel p-2 fade-in">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-text-secondary font-medium flex items-center gap-2">
+              <Icon name="Smile" size={14} />
+              Quick Emojis
+            </span>
+            <button
+              onClick={() => setShowEmojiBar(!showEmojiBar)}
+              className="text-xs text-text-secondary hover:text-text-primary transition-colors px-2 py-1 rounded hover:bg-glass-surface/30"
+            >
+              {showEmojiBar ? '−' : '+'}
+            </button>
+          </div>
+          
+          {showEmojiBar && (
             <div className="flex flex-wrap gap-1 justify-center">
               {emojiHotbar.map((emoji, index) => (
                 <button
@@ -214,19 +227,8 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
                 </button>
               ))}
             </div>
-          </div>
+          )}
         </div>
-      )}
-
-      {/* Emoji Toggle Button */}
-      <div className="mb-2 flex justify-center">
-        <button
-          onClick={() => setShowEmojiBar(!showEmojiBar)}
-          className="glass-button px-3 py-1 text-xs text-text-secondary hover:text-text-primary transition-colors flex items-center gap-2"
-        >
-          <Icon name="Smile" size={14} />
-          {showEmojiBar ? 'Hide Emojis' : 'Show Emojis'}
-        </button>
       </div>
 
       {/* Chat Input Panel */}
@@ -261,14 +263,14 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
         </div>
 
         <form onSubmit={handleSendMessage} className="flex gap-3">
-          <div className="flex-1 relative overflow-hidden rounded-lg">
+          <div className="flex-1 relative">
             <textarea
               ref={messageInputRef}
               value={message}
               onChange={handleMessageChange}
               onKeyPress={handleKeyPress}
               placeholder={activeChannel ? `Send a message to #${activeChannel.name}...` : "Select a channel to start messaging..."}
-              className={`w-full glass-panel px-4 py-3 bg-glass-surface/80 border-glass-border text-text-primary placeholder-text-secondary focus:outline-none focus:border-primary/50 transition-all duration-300 resize-none relative z-10 ${
+              className={`w-full glass-panel px-4 py-3 bg-glass-surface/80 border-glass-border text-text-primary placeholder-text-secondary focus:outline-none focus:border-primary/50 transition-all duration-300 resize-none ${
                 isReloading ? 'animate-pulse' : ''
               }`}
               rows="1"
@@ -277,7 +279,11 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
             
             {/* Sending animation overlay */}
             {isReloading && (
-              <div className="sending-overlay"></div>
+              <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
+                <div className="sending-text">
+                  sending chat...
+                </div>
+              </div>
             )}
             
             {/* Character counter */}

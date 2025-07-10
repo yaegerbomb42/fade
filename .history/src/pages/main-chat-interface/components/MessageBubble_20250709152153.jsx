@@ -80,17 +80,7 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
 
 
   useEffect(() => {
-    // For persistent messages, don't animate - just use the calculated position
-    if (message.isPersistent && message.position) {
-      setPosition({
-        top: message.position.top,
-        left: message.position.left
-      });
-      setIsVisible(true);
-      return;
-    }
-
-    // Synchronized show timing based on server timestamp for regular messages
+    // Synchronized show timing based on server timestamp
     const messageCreatedAt = message.createdAt || new Date(message.timestamp).getTime();
     const now = Date.now();
     const syncDelay = Math.max(0, messageCreatedAt - now + 200); // 200ms sync buffer
@@ -100,9 +90,9 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
       setIsVisible(true);
     }, syncDelay);
 
-    // Start movement with same synchronized timing for regular messages
+    // Start movement with same synchronized timing
     const moveTimer = setTimeout(() => {
-      const finalLeft = -30; // Ensure complete exit off left side
+      const finalLeft = -25 - (message.position?.horizontalStart || 0) * 0.1; // Consistent exit point
       setPosition(prev => {
         const newPosition = { ...prev, left: finalLeft };
         
@@ -136,8 +126,8 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
   const handleThumbsUp = (e) => {
     e.stopPropagation();
     
-    // Use the message ID for reactions
-    let reactionMessageId = message.id;
+    // For Forever Stream messages, use the original message ID for reactions
+    let reactionMessageId = message.originalId || message.id;
     const reactionKey = getUserReactionKey(reactionMessageId);
     
     if (hasReacted.thumbsDown) {
@@ -159,8 +149,8 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
   const handleThumbsDown = (e) => {
     e.stopPropagation();
     
-    // Use the message ID for reactions
-    let reactionMessageId = message.id;
+    // For Forever Stream messages, use the original message ID for reactions
+    let reactionMessageId = message.originalId || message.id;
     const reactionKey = getUserReactionKey(reactionMessageId);
     
     if (hasReacted.thumbsUp) {
@@ -178,6 +168,8 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
     }
     // If already disliked, do nothing (can't un-dislike)
   };
+    // If already disliked, do nothing (can't undislike)
+  };
 
   return (
     <div
@@ -185,8 +177,8 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
       style={{
         top: `${position.top}%`,
         left: `${position.left}%`,
-        transition: message.isPersistent ? 'opacity 0.3s ease, transform 0.3s ease' : `left ${animationDuration} linear, opacity 0.3s ease, transform 0.3s ease`,
-        willChange: message.isPersistent ? 'opacity, transform' : 'left, opacity, transform'
+        transition: `left ${animationDuration} linear, opacity 0.3s ease, transform 0.3s ease`,
+        willChange: 'left, opacity, transform'
       }}
     >
       <div className={`vibey-card bg-gradient-to-br ${bubbleGradient} border border-glass-border/30 hover:border-glass-highlight/50 transition-all duration-300 group relative overflow-hidden`}>

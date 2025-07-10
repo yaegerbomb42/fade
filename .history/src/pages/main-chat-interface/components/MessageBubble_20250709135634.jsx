@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import Icon from 'components/AppIcon';
 import { getUserReactionKey, getUserId, cleanupOldReactions } from '../../../utils/userIdentity';
+import { filterProfanity } from '../../../utils/profanityFilter';
 
 const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1, totalMessages = 0 }) => {
   // Guard clause: don't render if message is invalid
@@ -80,17 +81,7 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
 
 
   useEffect(() => {
-    // For persistent messages, don't animate - just use the calculated position
-    if (message.isPersistent && message.position) {
-      setPosition({
-        top: message.position.top,
-        left: message.position.left
-      });
-      setIsVisible(true);
-      return;
-    }
-
-    // Synchronized show timing based on server timestamp for regular messages
+    // Synchronized show timing based on server timestamp
     const messageCreatedAt = message.createdAt || new Date(message.timestamp).getTime();
     const now = Date.now();
     const syncDelay = Math.max(0, messageCreatedAt - now + 200); // 200ms sync buffer
@@ -100,9 +91,9 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
       setIsVisible(true);
     }, syncDelay);
 
-    // Start movement with same synchronized timing for regular messages
+    // Start movement with same synchronized timing
     const moveTimer = setTimeout(() => {
-      const finalLeft = -30; // Ensure complete exit off left side
+      const finalLeft = -25 - (message.position?.horizontalStart || 0) * 0.1; // Consistent exit point
       setPosition(prev => {
         const newPosition = { ...prev, left: finalLeft };
         
@@ -135,20 +126,17 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
 
   const handleThumbsUp = (e) => {
     e.stopPropagation();
-    
-    // Use the message ID for reactions
-    let reactionMessageId = message.id;
-    const reactionKey = getUserReactionKey(reactionMessageId);
+    const reactionKey = getUserReactionKey(message.id);
     
     if (hasReacted.thumbsDown) {
       // If user already disliked, switch to like
-      onReaction(reactionMessageId, 'thumbsUp', 'thumbsDown'); // Add thumb up, remove thumb down
+      onReaction(message.id, 'thumbsUp', 'thumbsDown'); // Add thumb up, remove thumb down
       const newReaction = { thumbsUp: true, thumbsDown: false };
       setHasReacted(newReaction);
       localStorage.setItem(reactionKey, JSON.stringify(newReaction));
     } else if (!hasReacted.thumbsUp) {
       // If no reaction yet, add like
-      onReaction(reactionMessageId, 'thumbsUp', null);
+      onReaction(message.id, 'thumbsUp', null);
       const newReaction = { thumbsUp: true, thumbsDown: false };
       setHasReacted(newReaction);
       localStorage.setItem(reactionKey, JSON.stringify(newReaction));
@@ -158,25 +146,22 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
 
   const handleThumbsDown = (e) => {
     e.stopPropagation();
-    
-    // Use the message ID for reactions
-    let reactionMessageId = message.id;
-    const reactionKey = getUserReactionKey(reactionMessageId);
+    const reactionKey = getUserReactionKey(message.id);
     
     if (hasReacted.thumbsUp) {
       // If user already liked, switch to dislike
-      onReaction(reactionMessageId, 'thumbsDown', 'thumbsUp'); // Add thumb down, remove thumb up
+      onReaction(message.id, 'thumbsDown', 'thumbsUp'); // Add thumb down, remove thumb up
       const newReaction = { thumbsUp: false, thumbsDown: true };
       setHasReacted(newReaction);
       localStorage.setItem(reactionKey, JSON.stringify(newReaction));
     } else if (!hasReacted.thumbsDown) {
       // If no reaction yet, add dislike
-      onReaction(reactionMessageId, 'thumbsDown', null);
+      onReaction(message.id, 'thumbsDown', null);
       const newReaction = { thumbsUp: false, thumbsDown: true };
       setHasReacted(newReaction);
       localStorage.setItem(reactionKey, JSON.stringify(newReaction));
     }
-    // If already disliked, do nothing (can't un-dislike)
+    // If already disliked, do nothing (can't undislike)
   };
 
   return (
@@ -185,8 +170,8 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
       style={{
         top: `${position.top}%`,
         left: `${position.left}%`,
-        transition: message.isPersistent ? 'opacity 0.3s ease, transform 0.3s ease' : `left ${animationDuration} linear, opacity 0.3s ease, transform 0.3s ease`,
-        willChange: message.isPersistent ? 'opacity, transform' : 'left, opacity, transform'
+        transition: `left ${animationDuration} linear, opacity 0.3s ease, transform 0.3s ease`,
+        willChange: 'left, opacity, transform'
       }}
     >
       <div className={`vibey-card bg-gradient-to-br ${bubbleGradient} border border-glass-border/30 hover:border-glass-highlight/50 transition-all duration-300 group relative overflow-hidden`}>

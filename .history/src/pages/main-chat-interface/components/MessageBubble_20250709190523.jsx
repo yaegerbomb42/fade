@@ -80,7 +80,7 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
 
 
   useEffect(() => {
-    // For persistent messages, don't animate - just use the calculated position
+    // For persistent Forever Stream messages, don't animate - just use the calculated position
     if (message.isPersistent && message.position) {
       setPosition({
         top: message.position.top,

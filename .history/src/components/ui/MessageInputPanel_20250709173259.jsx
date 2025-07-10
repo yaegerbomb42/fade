@@ -261,7 +261,7 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
         </div>
 
         <form onSubmit={handleSendMessage} className="flex gap-3">
-          <div className="flex-1 relative overflow-hidden rounded-lg">
+          <div className="flex-1 relative">
             <textarea
               ref={messageInputRef}
               value={message}

@@ -261,14 +261,14 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
         </div>
 
         <form onSubmit={handleSendMessage} className="flex gap-3">
-          <div className="flex-1 relative overflow-hidden rounded-lg">
+          <div className="flex-1 relative">
             <textarea
               ref={messageInputRef}
               value={message}
               onChange={handleMessageChange}
               onKeyPress={handleKeyPress}
               placeholder={activeChannel ? `Send a message to #${activeChannel.name}...` : "Select a channel to start messaging..."}
-              className={`w-full glass-panel px-4 py-3 bg-glass-surface/80 border-glass-border text-text-primary placeholder-text-secondary focus:outline-none focus:border-primary/50 transition-all duration-300 resize-none relative z-10 ${
+              className={`w-full glass-panel px-4 py-3 bg-glass-surface/80 border-glass-border text-text-primary placeholder-text-secondary focus:outline-none focus:border-primary/50 transition-all duration-300 resize-none ${
                 isReloading ? 'animate-pulse' : ''
               }`}
               rows="1"

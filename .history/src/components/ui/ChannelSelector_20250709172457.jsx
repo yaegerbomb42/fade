@@ -16,7 +16,8 @@ const ChannelSelector = ({ onChannelChange, activeChannel, channelUserCounts = {
     { id: 'random-chat', name: 'Random Chat' },
     { id: 'just-chatting', name: 'Just Chatting' },
     { id: 'music', name: 'Music' },
-    { id: 'late-night', name: 'Late Night' }
+    { id: 'late-night', name: 'Late Night' },
+    { id: 'forever-stream', name: 'Forever Stream', special: true }
   ];
 
   const handleChannelSelect = (channel) => {

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import Icon from 'components/AppIcon';
 import { getUserReactionKey, getUserId, cleanupOldReactions } from '../../../utils/userIdentity';
+import { filterProfanity } from '../../../utils/profanityFilter';
 
 const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1, totalMessages = 0 }) => {
   // Guard clause: don't render if message is invalid
@@ -80,17 +81,7 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
 
 
   useEffect(() => {
-    // For persistent messages, don't animate - just use the calculated position
-    if (message.isPersistent && message.position) {
-      setPosition({
-        top: message.position.top,
-        left: message.position.left
-      });
-      setIsVisible(true);
-      return;
-    }
-
-    // Synchronized show timing based on server timestamp for regular messages
+    // Synchronized show timing based on server timestamp
     const messageCreatedAt = message.createdAt || new Date(message.timestamp).getTime();
     const now = Date.now();
     const syncDelay = Math.max(0, messageCreatedAt - now + 200); // 200ms sync buffer
@@ -100,7 +91,7 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
       setIsVisible(true);
     }, syncDelay);
 
-    // Start movement with same synchronized timing for regular messages
+    // Start movement with same synchronized timing
     const moveTimer = setTimeout(() => {
       const finalLeft = -30; // Ensure complete exit off left side
       setPosition(prev => {
@@ -136,8 +127,12 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
   const handleThumbsUp = (e) => {
     e.stopPropagation();
     
-    // Use the message ID for reactions
+    // For Forever Stream messages, use the original message ID for reactions
     let reactionMessageId = message.id;
+    if (message.originalId) {
+      reactionMessageId = message.originalId;
+    }
+    
     const reactionKey = getUserReactionKey(reactionMessageId);
     
     if (hasReacted.thumbsDown) {
@@ -158,35 +153,32 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
 
   const handleThumbsDown = (e) => {
     e.stopPropagation();
-    
-    // Use the message ID for reactions
-    let reactionMessageId = message.id;
-    const reactionKey = getUserReactionKey(reactionMessageId);
+    const reactionKey = getUserReactionKey(message.id);
     
     if (hasReacted.thumbsUp) {
       // If user already liked, switch to dislike
-      onReaction(reactionMessageId, 'thumbsDown', 'thumbsUp'); // Add thumb down, remove thumb up
+      onReaction(message.id, 'thumbsDown', 'thumbsUp'); // Add thumb down, remove thumb up
       const newReaction = { thumbsUp: false, thumbsDown: true };
       setHasReacted(newReaction);
       localStorage.setItem(reactionKey, JSON.stringify(newReaction));
     } else if (!hasReacted.thumbsDown) {
       // If no reaction yet, add dislike
-      onReaction(reactionMessageId, 'thumbsDown', null);
+      onReaction(message.id, 'thumbsDown', null);
       const newReaction = { thumbsUp: false, thumbsDown: true };
       setHasReacted(newReaction);
       localStorage.setItem(reactionKey, JSON.stringify(newReaction));
     }
-    // If already disliked, do nothing (can't un-dislike)
+    // If already disliked, do nothing (can't undislike)
   };
 
   return (
     <div
-      className={`absolute w-56 pointer-events-auto ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'} message-bubble`}
+      className={`absolute w-48 pointer-events-auto ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'} message-bubble`}
       style={{
         top: `${position.top}%`,
         left: `${position.left}%`,
-        transition: message.isPersistent ? 'opacity 0.3s ease, transform 0.3s ease' : `left ${animationDuration} linear, opacity 0.3s ease, transform 0.3s ease`,
-        willChange: message.isPersistent ? 'opacity, transform' : 'left, opacity, transform'
+        transition: `left ${animationDuration} linear, opacity 0.3s ease, transform 0.3s ease`,
+        willChange: 'left, opacity, transform'
       }}
     >
       <div className={`vibey-card bg-gradient-to-br ${bubbleGradient} border border-glass-border/30 hover:border-glass-highlight/50 transition-all duration-300 group relative overflow-hidden`}>
@@ -195,18 +187,18 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
         <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
         
         {/* Content container - reduced padding for compactness */}
-        <div className="relative z-10 p-2">
+        <div className="relative z-10 p-1.5">
           
           {/* Header with author and time - more compact */}
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-1">
-              <div className="w-4 h-4 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shadow-sm">
+              <div className="w-3 h-3 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shadow-sm">
                 <span className="text-xs font-bold text-white">
                   {(message.author || 'Anonymous').charAt(0).toUpperCase()}
                 </span>
               </div>
               <span className="text-xs font-medium text-text-primary">
-                {message.author || 'Anonymous'}
+                {(message.author || 'Anonymous').slice(0, 8)}
               </span>
             </div>
             <span className="text-xs text-text-secondary/60 font-mono">
@@ -219,13 +211,13 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
           </div>
 
           {/* Message Content - responsive wrapping with better margins */}
-          <div className="text-sm text-text-primary leading-snug mb-2" style={{
+          <div className="text-xs text-text-primary leading-snug mb-1.5" style={{
             wordBreak: 'break-word',
             overflowWrap: 'break-word',
             maxWidth: '100%',
             whiteSpace: 'pre-wrap'
           }}>
-            {message.text || 'No message content'}
+            {filterProfanity(message.text || 'No message content')}
           </div>
 
           {/* Reaction bar - easier to click, always visible */}
@@ -236,8 +228,8 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
                 onClick={handleThumbsUp}
                 title="Like this vibe"
               >
-                <span className="text-sm">👍</span>
-                <span className="text-xs font-mono ml-1">{message.reactions?.thumbsUp || 0}</span>
+                <span className="text-xs">👍</span>
+                <span className="text-xs font-mono ml-0.5">{message.reactions?.thumbsUp || 0}</span>
               </button>
               
               <button
@@ -245,8 +237,8 @@ const MessageBubble = ({ message, index, onReaction, onRemove, activityLevel = 1
                 onClick={handleThumbsDown}
                 title="Not feeling this vibe"
               >
-                <span className="text-sm">👎</span>
-                <span className="text-xs font-mono ml-1">{message.reactions?.thumbsDown || 0}</span>
+                <span className="text-xs">👎</span>
+                <span className="text-xs font-mono ml-0.5">{message.reactions?.thumbsDown || 0}</span>
               </button>
             </div>
           </div>

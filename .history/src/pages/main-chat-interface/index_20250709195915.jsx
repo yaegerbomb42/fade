@@ -547,13 +547,7 @@ const MainChatInterface = () => {
           // Add all active flow messages directly to messages state to maintain their positions
           if (activeFlowMessages.length > 0) {
             setMessages(activeFlowMessages);
-            console.log(`Restored ${activeFlowMessages.length} flowing messages for #${activeChannel.name}`, 
-              activeFlowMessages.map(m => ({ 
-                id: m.id.substring(0, 8), 
-                progress: m.currentPosition?.progress?.toFixed(2), 
-                left: m.currentPosition?.left?.toFixed(1) 
-              }))
-            );
+            console.log(`Restored ${activeFlowMessages.length} flowing messages for #${activeChannel.name}`);
           }
         }
       } catch (error) {
@@ -913,7 +907,7 @@ const MainChatInterface = () => {
     // Calculate current progress based on when message was created
     const now = Date.now();
     const messageAge = now - messageTime;
-    const progress = Math.min(Math.max(0, messageAge / REGULAR_MESSAGE_FLOW_DURATION), 1);
+    const progress = Math.min(messageAge / REGULAR_MESSAGE_FLOW_DURATION, 1);
     
     // Calculate position
     const lanes = 6;
@@ -933,9 +927,7 @@ const MainChatInterface = () => {
       left: currentX,
       lane,
       progress,
-      isExpired: progress >= 1,
-      messageAge, // Include for debugging
-      calculatedAt: now // Timestamp when position was calculated
+      isExpired: progress >= 1
     };
   };
 

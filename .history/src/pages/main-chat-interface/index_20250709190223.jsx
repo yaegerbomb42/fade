@@ -499,15 +499,15 @@ const MainChatInterface = () => {
     // Record when user joins - for tracking NEW messages
     const joinTimestamp = Date.now();
     
-    // Load recent messages for regular channels and restore their flow positions
+    // Load recent messages for regular channels (last 15 minutes for better continuity)
     const loadRecentMessages = async () => {
       try {
-        // Load messages from the last flow duration period to catch all currently flowing messages
-        const flowPeriodAgo = new Date(Date.now() - REGULAR_MESSAGE_FLOW_DURATION).toISOString();
+        // For regular channels, load messages from the last 15 minutes for better flow continuity
+        const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
         const recentMessagesQuery = query(
           messagesRef,
           orderByChild('timestamp'),
-          startAt(flowPeriodAgo)
+          startAt(fifteenMinutesAgo)
         );
         
         const snapshot = await get(recentMessagesQuery);
@@ -521,40 +521,27 @@ const MainChatInterface = () => {
                          msg.author !== 'Anonymous')
             .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
           
-          // Process messages and add only those still in flow
-          const activeFlowMessages = [];
-          
+          // Add these existing messages to maintain flow
           messageArray.forEach(message => {
             if (!permanentlyProcessedIds.current.has(message.id)) {
               permanentlyProcessedIds.current.add(message.id);
               
-              // Calculate current position based on server sync
+              // Calculate position based on server sync for immediate display
               const position = getServerSyncedMessagePosition(message.timestamp, channelId);
               
-              // Only add messages that are still visible/flowing
               if (!position.isExpired) {
-                activeFlowMessages.push({
+                setMessageQueue(q => [...q, { 
                   ...message, 
                   channelId, 
                   isRecentMessage: true,
-                  currentPosition: position, // Store the calculated current position
+                  position: position,
                   animationDuration: `${REGULAR_MESSAGE_FLOW_DURATION / 1000}s`
-                });
+                }]);
               }
             }
           });
           
-          // Add all active flow messages directly to messages state to maintain their positions
-          if (activeFlowMessages.length > 0) {
-            setMessages(activeFlowMessages);
-            console.log(`Restored ${activeFlowMessages.length} flowing messages for #${activeChannel.name}`, 
-              activeFlowMessages.map(m => ({ 
-                id: m.id.substring(0, 8), 
-                progress: m.currentPosition?.progress?.toFixed(2), 
-                left: m.currentPosition?.left?.toFixed(1) 
-              }))
-            );
-          }
+          console.log(`Loaded ${messageArray.length} recent messages for #${activeChannel.name} (continuing flow)`);
         }
       } catch (error) {
         console.error('Failed to load recent messages:', error);
@@ -859,7 +846,23 @@ const MainChatInterface = () => {
   const handleReaction = useCallback((messageId, addReactionType, removeReactionType) => {
     if (!database || !activeChannel) return;
     
-    const channelPath = `channels/${activeChannel.id.replace(/[.#$[\]]/g, '_')}/messages/${messageId}/reactions`;
+    // For Forever Stream messages, use the original message ID for reactions
+    let actualMessageId = messageId;
+    
+    // Check if this is a forever stream message with our new ID format
+    if (messageId.includes('fs_')) {
+      // Extract the original ID from the forever stream ID: fs_originalId_index
+      const parts = messageId.split('_');
+      if (parts.length >= 3) {
+        actualMessageId = parts.slice(1, -1).join('_'); // Remove 'fs_' prefix and index suffix
+      }
+    } else if (messageId.includes('_cycle_')) {
+      // Handle old cycle format for compatibility
+      const parts = messageId.split('_cycle_');
+      actualMessageId = parts[0];
+    }
+    
+    const channelPath = `channels/${activeChannel.id.replace(/[.#$[\]]/g, '_')}/messages/${actualMessageId}/reactions`;
     
     // Add the new reaction
     const addReactionRef = ref(database, `${channelPath}/${addReactionType}`);
@@ -870,6 +873,19 @@ const MainChatInterface = () => {
       const removeReactionRef = ref(database, `${channelPath}/${removeReactionType}`);
       runTransaction(removeReactionRef, (current) => Math.max(0, (current || 0) - 1));
     }
+    
+    // Update the local state immediately for responsive UI
+    setMessages(prevMessages => prevMessages.map(msg => {
+      if (msg.originalId === actualMessageId || msg.id === actualMessageId) {
+        const updatedReactions = { ...msg.reactions };
+        updatedReactions[addReactionType] = (updatedReactions[addReactionType] || 0) + 1;
+        if (removeReactionType) {
+          updatedReactions[removeReactionType] = Math.max(0, (updatedReactions[removeReactionType] || 0) - 1);
+        }
+        return { ...msg, reactions: updatedReactions };
+      }
+      return msg;
+    }));
   }, [database, activeChannel]);
 
   const handleRemoveMessage = useCallback((id) => {
@@ -899,6 +915,25 @@ const MainChatInterface = () => {
     permanentlyProcessedIds.current.add(id);
   }, [activeChannel]);
 
+  // Forever Stream global synchronization with server-based timing
+  const getGlobalForeverStreamState = () => {
+    // Use a fixed epoch that ensures all users are synchronized
+    const FOREVER_STREAM_START_TIME = 1704067200000; // Fixed epoch timestamp (Jan 1, 2024)
+    const now = Date.now();
+    const elapsed = now - FOREVER_STREAM_START_TIME;
+    
+    // Calculate current cycle and progress with more stable math
+    const totalCycles = Math.floor(elapsed / FOREVER_STREAM_CYCLE_INTERVAL);
+    const cycleProgress = (elapsed % FOREVER_STREAM_CYCLE_INTERVAL) / FOREVER_STREAM_CYCLE_INTERVAL;
+    
+    return { 
+      totalCycles, 
+      cycleProgress,
+      currentTime: now,
+      cycleStartTime: FOREVER_STREAM_START_TIME + (totalCycles * FOREVER_STREAM_CYCLE_INTERVAL)
+    };
+  };
+
   // Calculate server-synchronized message position for regular channels
   const getServerSyncedMessagePosition = (messageTimestamp, channelId) => {
     // Create deterministic position based on message timestamp and channel
@@ -913,7 +948,7 @@ const MainChatInterface = () => {
     // Calculate current progress based on when message was created
     const now = Date.now();
     const messageAge = now - messageTime;
-    const progress = Math.min(Math.max(0, messageAge / REGULAR_MESSAGE_FLOW_DURATION), 1);
+    const progress = Math.min(messageAge / REGULAR_MESSAGE_FLOW_DURATION, 1);
     
     // Calculate position
     const lanes = 6;
@@ -933,15 +968,123 @@ const MainChatInterface = () => {
       left: currentX,
       lane,
       progress,
-      isExpired: progress >= 1,
-      messageAge, // Include for debugging
-      calculatedAt: now // Timestamp when position was calculated
+      isExpired: progress >= 1
     };
   };
 
+  // Calculate deterministic message position for Forever Stream
+  const calculateForeverStreamPosition = (messageId, messageIndex, cycleProgress) => {
+    // Use message ID for consistent positioning across all users and sessions
+    const seed = messageId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const pseudoRandom = (seed * 9301 + 49297) % 233280 / 233280;
+    
+    const lanes = 6;
+    const laneHeight = 70 / lanes;
+    const lane = Math.floor(pseudoRandom * lanes);
+    const baseTop = 20 + (lane * laneHeight);
+    const verticalOffset = (pseudoRandom - 0.5) * 6;
+    
+    // Calculate horizontal position with stable timing
+    // Each message has its own offset based on its index in the stream
+    const messageDelay = (messageIndex * 0.33) % 1; // 33% delay between messages
+    const adjustedProgress = (cycleProgress + messageDelay) % 1;
+    
+    // Smooth movement across screen
+    const startX = 115;
+    const endX = -25;
+    const easeInOut = (t) => {
+      if (t < 0.5) return 2 * t * t;
+      return 1 - Math.pow(-2 * t + 2, 2) / 2;
+    };
+    
+    const currentX = startX - (easeInOut(adjustedProgress) * (startX - endX));
+    
+    return {
+      top: Math.max(25, Math.min(85, baseTop + verticalOffset)),
+      left: currentX,
+      lane,
+      messageDelay,
+      adjustedProgress,
+      isVisible: adjustedProgress < 0.9 // Hide when almost off screen
+    };
+  };
+
+  // Forever Stream cycling logic - completely rewritten for stability
+  useEffect(() => {
+    if (activeChannel?.id !== 'forever-stream') {
+      return;
+    }
+
+    const currentChannelMessages = foreverStreamMessages[activeChannel?.id] || [];
+    if (currentChannelMessages.length === 0) {
+      return;
+    }
+
+    let isActive = true;
+    
+    const updateForeverStream = () => {
+      if (!isActive) return;
+      
+      const { totalCycles, cycleProgress } = getGlobalForeverStreamState();
+      const activeMessages = [];
+      
+      // Create a stable set of messages that rotate through the pool
+      const messagePool = currentChannelMessages.slice(); // Copy array
+      const poolSize = Math.min(messagePool.length, 20); // Limit pool size for performance
+      
+      for (let i = 0; i < MAX_ACTIVE_MESSAGES && i < poolSize; i++) {
+        // Calculate which message from the pool should be shown
+        const cycleOffset = i * 8; // Large offset between messages
+        const messageCycleIndex = (totalCycles + cycleOffset) % poolSize;
+        const sourceMessage = messagePool[messageCycleIndex];
+        
+        if (!sourceMessage || !sourceMessage.text || !sourceMessage.author) {
+          continue;
+        }
+        
+        // Calculate position for this specific message
+        const position = calculateForeverStreamPosition(sourceMessage.id, i, cycleProgress);
+        
+        if (!position.isVisible) {
+          continue; // Skip messages that are off-screen
+        }
+        
+        // Create stable message instance with consistent ID
+        const stableId = `fs_${sourceMessage.id}_${messageCycleIndex}`;
+        const foreverStreamMessage = {
+          ...sourceMessage,
+          id: stableId,
+          originalId: sourceMessage.id, // Keep reference to original for reactions
+          timestamp: sourceMessage.timestamp, // Keep original timestamp
+          position: position,
+          channelId: activeChannel.id,
+          animationDuration: `${FOREVER_STREAM_CYCLE_INTERVAL / 1000}s`,
+          isPersistent: true,
+          isForeverStream: true
+        };
+        
+        activeMessages.push(foreverStreamMessage);
+      }
+      
+      // Update messages state
+      setMessages(activeMessages);
+    };
+
+    // Initial update
+    updateForeverStream();
+    
+    // Update every 3 seconds for smooth but not laggy experience
+    const updateInterval = setInterval(updateForeverStream, 3000);
+
+    return () => {
+      isActive = false;
+      clearInterval(updateInterval);
+    };
+  }, [activeChannel?.id, foreverStreamMessages]);
+
   // Regular channel persistent message flow - continues after refresh
   useEffect(() => {
-    if (!activeChannel?.id) {
+    if (activeChannel?.id === 'forever-stream' || !activeChannel?.id) {
       return;
     }
 
@@ -950,37 +1093,37 @@ const MainChatInterface = () => {
     const updateRegularFlow = () => {
       if (!isActive) return;
       
-      // Use the current messages state directly without dependencies to avoid interference
+      const now = Date.now();
+      const flowMessages = [];
+      
+      // Get all messages for this channel (both recent and new)
+      const allChannelMessages = messages.filter(msg => 
+        msg.channelId === activeChannel.id && 
+        msg.text && 
+        msg.author &&
+        msg.timestamp
+      );
+      
+      // Calculate server-synced positions for all active messages
+      allChannelMessages.forEach(message => {
+        const position = getServerSyncedMessagePosition(message.timestamp, activeChannel.id);
+        
+        if (!position.isExpired) {
+          flowMessages.push({
+            ...message,
+            position: position,
+            animationDuration: `${REGULAR_MESSAGE_FLOW_DURATION / 1000}s`,
+            isPersistent: true
+          });
+        }
+      });
+      
+      // Update only if there are changes to prevent unnecessary re-renders
       setMessages(prevMessages => {
-        const flowMessages = [];
-        
-        // Process all current messages for position updates
-        prevMessages.forEach(message => {
-          if (message.channelId === activeChannel.id && 
-              message.text && 
-              message.author &&
-              message.timestamp) {
-            
-            // Use stored current position if available (for restored messages), otherwise calculate
-            const position = message.currentPosition || getServerSyncedMessagePosition(message.timestamp, activeChannel.id);
-            
-            if (!position.isExpired) {
-              flowMessages.push({
-                ...message,
-                position: position,
-                animationDuration: `${REGULAR_MESSAGE_FLOW_DURATION / 1000}s`,
-                isPersistent: true,
-                // Clear currentPosition after first use to allow normal flow calculation
-                currentPosition: undefined
-              });
-            }
-          }
-        });
-        
-        // Only update if there are meaningful changes
         const prevIds = new Set(prevMessages.map(m => m.id));
         const newIds = new Set(flowMessages.map(m => m.id));
         
+        // Check if there are actual changes
         const hasChanges = prevMessages.length !== flowMessages.length ||
           flowMessages.some(msg => !prevIds.has(msg.id)) ||
           prevMessages.some(msg => !newIds.has(msg.id));
@@ -999,7 +1142,7 @@ const MainChatInterface = () => {
       isActive = false;
       clearInterval(flowInterval);
     };
-  }, [activeChannel?.id]); // Remove messages dependency to prevent interference
+  }, [activeChannel?.id, messages]);
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">

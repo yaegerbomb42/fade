@@ -499,15 +499,15 @@ const MainChatInterface = () => {
     // Record when user joins - for tracking NEW messages
     const joinTimestamp = Date.now();
     
-    // Load recent messages for regular channels and restore their flow positions
+    // Load recent messages for regular channels (last 15 minutes for better continuity)
     const loadRecentMessages = async () => {
       try {
-        // Load messages from the last flow duration period to catch all currently flowing messages
-        const flowPeriodAgo = new Date(Date.now() - REGULAR_MESSAGE_FLOW_DURATION).toISOString();
+        // For regular channels, load messages from the last 15 minutes for better flow continuity
+        const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
         const recentMessagesQuery = query(
           messagesRef,
           orderByChild('timestamp'),
-          startAt(flowPeriodAgo)
+          startAt(fifteenMinutesAgo)
         );
         
         const snapshot = await get(recentMessagesQuery);
@@ -521,40 +521,27 @@ const MainChatInterface = () => {
                          msg.author !== 'Anonymous')
             .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
           
-          // Process messages and add only those still in flow
-          const activeFlowMessages = [];
-          
+          // Add these existing messages to maintain flow
           messageArray.forEach(message => {
             if (!permanentlyProcessedIds.current.has(message.id)) {
               permanentlyProcessedIds.current.add(message.id);
               
-              // Calculate current position based on server sync
+              // Calculate position based on server sync for immediate display
               const position = getServerSyncedMessagePosition(message.timestamp, channelId);
               
-              // Only add messages that are still visible/flowing
               if (!position.isExpired) {
-                activeFlowMessages.push({
+                setMessageQueue(q => [...q, { 
                   ...message, 
                   channelId, 
                   isRecentMessage: true,
-                  currentPosition: position, // Store the calculated current position
+                  position: position,
                   animationDuration: `${REGULAR_MESSAGE_FLOW_DURATION / 1000}s`
-                });
+                }]);
               }
             }
           });
           
-          // Add all active flow messages directly to messages state to maintain their positions
-          if (activeFlowMessages.length > 0) {
-            setMessages(activeFlowMessages);
-            console.log(`Restored ${activeFlowMessages.length} flowing messages for #${activeChannel.name}`, 
-              activeFlowMessages.map(m => ({ 
-                id: m.id.substring(0, 8), 
-                progress: m.currentPosition?.progress?.toFixed(2), 
-                left: m.currentPosition?.left?.toFixed(1) 
-              }))
-            );
-          }
+          console.log(`Loaded ${messageArray.length} recent messages for #${activeChannel.name} (continuing flow)`);
         }
       } catch (error) {
         console.error('Failed to load recent messages:', error);
@@ -913,7 +900,7 @@ const MainChatInterface = () => {
     // Calculate current progress based on when message was created
     const now = Date.now();
     const messageAge = now - messageTime;
-    const progress = Math.min(Math.max(0, messageAge / REGULAR_MESSAGE_FLOW_DURATION), 1);
+    const progress = Math.min(messageAge / REGULAR_MESSAGE_FLOW_DURATION, 1);
     
     // Calculate position
     const lanes = 6;
@@ -933,9 +920,7 @@ const MainChatInterface = () => {
       left: currentX,
       lane,
       progress,
-      isExpired: progress >= 1,
-      messageAge, // Include for debugging
-      calculatedAt: now // Timestamp when position was calculated
+      isExpired: progress >= 1
     };
   };
 
@@ -950,6 +935,8 @@ const MainChatInterface = () => {
     const updateRegularFlow = () => {
       if (!isActive) return;
       
+      const now = Date.now();
+      
       // Use the current messages state directly without dependencies to avoid interference
       setMessages(prevMessages => {
         const flowMessages = [];
@@ -961,17 +948,14 @@ const MainChatInterface = () => {
               message.author &&
               message.timestamp) {
             
-            // Use stored current position if available (for restored messages), otherwise calculate
-            const position = message.currentPosition || getServerSyncedMessagePosition(message.timestamp, activeChannel.id);
+            const position = getServerSyncedMessagePosition(message.timestamp, activeChannel.id);
             
             if (!position.isExpired) {
               flowMessages.push({
                 ...message,
                 position: position,
                 animationDuration: `${REGULAR_MESSAGE_FLOW_DURATION / 1000}s`,
-                isPersistent: true,
-                // Clear currentPosition after first use to allow normal flow calculation
-                currentPosition: undefined
+                isPersistent: true
               });
             }
           }

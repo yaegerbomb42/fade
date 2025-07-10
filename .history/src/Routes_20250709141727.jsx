@@ -15,7 +15,6 @@ const Routes = () => {
           <Route path="/" element={<MainChatInterface />} />
           <Route path="/channel/:channelId" element={<MainChatInterface />} />
           <Route path="/main-chat-interface" element={<MainChatInterface />} />
-          <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="*" element={<NotFound />} />
         </RouterRoutes>
       </ErrorBoundary>

@@ -547,13 +547,7 @@ const MainChatInterface = () => {
           // Add all active flow messages directly to messages state to maintain their positions
           if (activeFlowMessages.length > 0) {
             setMessages(activeFlowMessages);
-            console.log(`Restored ${activeFlowMessages.length} flowing messages for #${activeChannel.name}`, 
-              activeFlowMessages.map(m => ({ 
-                id: m.id.substring(0, 8), 
-                progress: m.currentPosition?.progress?.toFixed(2), 
-                left: m.currentPosition?.left?.toFixed(1) 
-              }))
-            );
+            console.log(`Restored ${activeFlowMessages.length} flowing messages for #${activeChannel.name}`);
           }
         }
       } catch (error) {
