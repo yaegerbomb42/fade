@@ -89,9 +89,9 @@ const AdsterraBanner = () => {
       const adContainer = document.getElementById('container-58d94318819023c51d2375249b2d6604');
       console.log('AdsterraBanner: Checking for ad container...', !!adContainer, adContainer?.innerHTML?.length || 0);
       
-      if (adContainer && adContainer.innerHTML.trim()) {
-        console.log('AdsterraBanner: Styling ad container for small format');
-        // Ultra-compact dimensions
+      if (adContainer && adContainer.innerHTML) {
+        console.log('AdsterraBanner: Styling ad container');
+        // Small rectangular dimensions
         const maxWidth = '320px';
         const maxHeight = '100px';
         
@@ -108,14 +108,11 @@ const AdsterraBanner = () => {
         adContainer.style.position = 'relative';
         adContainer.style.zIndex = '1';
         adContainer.style.cursor = 'pointer';
-        adContainer.style.background = 'rgba(255, 255, 255, 0.05)';
-        adContainer.style.backdropFilter = 'blur(10px)';
-        adContainer.style.border = '1px solid rgba(255, 255, 255, 0.1)';
         
         // Add click handler for ad-free option
         adContainer.addEventListener('click', handleAdClick);
         
-        // Style child elements for ultra-compact format
+        // Style child elements for small format
         const adElements = adContainer.querySelectorAll('*');
         adElements.forEach(el => {
           el.style.maxWidth = '310px';
@@ -136,46 +133,28 @@ const AdsterraBanner = () => {
             el.style.height = '90px';
             el.style.border = 'none';
           } else {
-            el.style.fontSize = '9px';
-            el.style.lineHeight = '1.1';
+            el.style.fontSize = '10px';
+            el.style.lineHeight = '1.2';
             el.style.wordWrap = 'break-word';
           }
         });
-        
-        console.log('AdsterraBanner: Ad successfully styled for compact display');
       } else {
-        console.log('AdsterraBanner: Container not ready, retrying...');
         setTimeout(checkAndStyleAd, 500);
       }
     };
 
-    // Debug: Check script loading and container creation with more detail
+    // Debug: Check script loading and container creation
     setTimeout(() => {
       const loadedScript = document.getElementById('adsterra-script-58d94318819023c51d2375249b2d6604');
       const container = document.getElementById('container-58d94318819023c51d2375249b2d6604');
-      const allScripts = document.querySelectorAll('script[src*="profitableratecpm.com"]');
-      
       console.log('AdsterraBanner Debug after 3s:', {
         scriptLoaded: !!loadedScript,
-        scriptSrc: loadedScript?.src,
         containerExists: !!container,
-        containerHasContent: !!container?.innerHTML,
-        containerContentLength: container?.innerHTML?.length || 0,
-        allAdsterraScripts: allScripts.length,
-        networkErrors: window.adNetworkErrors || [],
-        cspBlocked: document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content
+        containerHasContent: !!container?.innerHTML
       });
-      
-      // Check if there are any network errors
-      if (!container?.innerHTML && loadedScript) {
-        console.warn('AdsterraBanner: Script loaded but no content generated. Possible reasons: ad blocker, CSP, or network issue');
-      }
     }, 3000);
 
-    // More aggressive retry for ad styling
     setTimeout(checkAndStyleAd, 1000);
-    setTimeout(checkAndStyleAd, 3000);
-    setTimeout(checkAndStyleAd, 5000);
 
     return () => {
       const existingScript = document.getElementById('adsterra-script-58d94318819023c51d2375249b2d6604');
@@ -188,27 +167,8 @@ const AdsterraBanner = () => {
   if (isAdFree) {
     return (
       <div className="ad-container-wrapper">
-        <div 
-          style={{
-            width: '320px',
-            height: '100px',
-            maxWidth: '320px',
-            maxHeight: '100px',
-            overflow: 'hidden',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: '6px',
-            backgroundColor: 'rgba(34, 197, 94, 0.1)',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(34, 197, 94, 0.3)',
-            position: 'relative',
-            zIndex: 1
-          }}
-        >
-          <div className="ad-free-timer">
-            🆓 {formatTimeLeft(adFreeTimeLeft)}
-          </div>
+        <div className="ad-free-timer">
+          ✨ {formatTimeLeft(adFreeTimeLeft)}
         </div>
       </div>
     );
@@ -239,17 +199,16 @@ const AdsterraBanner = () => {
       >
         {/* Fallback content while ad loads */}
         <div style={{ 
-          fontSize: '8px', 
-          color: 'rgba(255,255,255,0.3)', 
+          fontSize: '10px', 
+          color: 'rgba(255,255,255,0.4)', 
           textAlign: 'center',
-          padding: '2px',
-          lineHeight: '1.1'
+          padding: '4px'
         }}>
-          Ad Loading...
+          Advertisement Loading...
         </div>
       </div>
-      <div className="ad-free-option" onClick={handleAdClick}>
-        ✨ Click for 5hr ad-free
+      <div className="ad-free-option">
+        Click ad for 5hrs ad-free browsing
       </div>
     </div>
   );
@@ -288,25 +247,10 @@ const SocialBar = () => {
     
     document.head.appendChild(script);
 
-    // Debug: Check if script gets created with detailed info
+    // Debug: Check if script gets created
     setTimeout(() => {
       const loadedScript = document.querySelector('script[src*="1014d6dbb7fb79fc7052e4095ea35eca.js"]');
-      const allSocialScripts = document.querySelectorAll('script[src*="profitableratecpm.com"]');
-      const socialContainer = document.querySelector('.social-bar-container');
-      
-      console.log('SocialBar: Debug after 2s:', {
-        scriptInDOM: !!loadedScript,
-        scriptSrc: loadedScript?.src,
-        totalAdScripts: allSocialScripts.length,
-        socialContainerExists: !!socialContainer,
-        hasError: hasError,
-        isLoaded: isLoaded,
-        cspHeaders: document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content
-      });
-      
-      if (!loadedScript) {
-        console.warn('SocialBar: Script not found in DOM - possible CSP or ad blocker interference');
-      }
+      console.log('SocialBar: Script in DOM after 2s:', !!loadedScript);
     }, 2000);
 
     return () => {
@@ -1517,8 +1461,8 @@ const MainChatInterface = () => {
         </div>
       )}
 
-      {/* Adsterra Native Banner - small compact rectangle above privacy policy */}
-      <div className="fixed bottom-12 right-4 z-interface">
+      {/* Adsterra Native Banner - small rectangular below chat input */}
+      <div className="fixed bottom-24 left-1/2 transform -translate-x-1/2 z-interface">
         <AdsterraBanner />
       </div>
 
@@ -1527,7 +1471,7 @@ const MainChatInterface = () => {
         <SocialBar />
       </div>
 
-      {/* Privacy Policy Link - back to original position */}
+      {/* Privacy Policy Link - positioned in bottom right corner */}
       <div className="fixed bottom-4 right-4 z-interface">
         <Link
           to="/privacy"

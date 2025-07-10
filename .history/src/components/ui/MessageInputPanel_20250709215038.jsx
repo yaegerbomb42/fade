@@ -196,7 +196,7 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
   }
 
   return (
-    <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-interface w-full max-w-2xl px-4">
+    <div className="fixed bottom-80 left-1/2 transform -translate-x-1/2 z-interface w-full max-w-2xl px-4">
       {/* Emoji Hotbar */}
       {showEmojiBar && (
         <div className="mb-2">

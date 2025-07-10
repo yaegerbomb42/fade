@@ -149,33 +149,18 @@ const AdsterraBanner = () => {
       }
     };
 
-    // Debug: Check script loading and container creation with more detail
+    // Debug: Check script loading and container creation
     setTimeout(() => {
       const loadedScript = document.getElementById('adsterra-script-58d94318819023c51d2375249b2d6604');
       const container = document.getElementById('container-58d94318819023c51d2375249b2d6604');
-      const allScripts = document.querySelectorAll('script[src*="profitableratecpm.com"]');
-      
       console.log('AdsterraBanner Debug after 3s:', {
         scriptLoaded: !!loadedScript,
-        scriptSrc: loadedScript?.src,
         containerExists: !!container,
-        containerHasContent: !!container?.innerHTML,
-        containerContentLength: container?.innerHTML?.length || 0,
-        allAdsterraScripts: allScripts.length,
-        networkErrors: window.adNetworkErrors || [],
-        cspBlocked: document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content
+        containerHasContent: !!container?.innerHTML
       });
-      
-      // Check if there are any network errors
-      if (!container?.innerHTML && loadedScript) {
-        console.warn('AdsterraBanner: Script loaded but no content generated. Possible reasons: ad blocker, CSP, or network issue');
-      }
     }, 3000);
 
-    // More aggressive retry for ad styling
     setTimeout(checkAndStyleAd, 1000);
-    setTimeout(checkAndStyleAd, 3000);
-    setTimeout(checkAndStyleAd, 5000);
 
     return () => {
       const existingScript = document.getElementById('adsterra-script-58d94318819023c51d2375249b2d6604');
@@ -288,25 +273,10 @@ const SocialBar = () => {
     
     document.head.appendChild(script);
 
-    // Debug: Check if script gets created with detailed info
+    // Debug: Check if script gets created
     setTimeout(() => {
       const loadedScript = document.querySelector('script[src*="1014d6dbb7fb79fc7052e4095ea35eca.js"]');
-      const allSocialScripts = document.querySelectorAll('script[src*="profitableratecpm.com"]');
-      const socialContainer = document.querySelector('.social-bar-container');
-      
-      console.log('SocialBar: Debug after 2s:', {
-        scriptInDOM: !!loadedScript,
-        scriptSrc: loadedScript?.src,
-        totalAdScripts: allSocialScripts.length,
-        socialContainerExists: !!socialContainer,
-        hasError: hasError,
-        isLoaded: isLoaded,
-        cspHeaders: document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content
-      });
-      
-      if (!loadedScript) {
-        console.warn('SocialBar: Script not found in DOM - possible CSP or ad blocker interference');
-      }
+      console.log('SocialBar: Script in DOM after 2s:', !!loadedScript);
     }, 2000);
 
     return () => {

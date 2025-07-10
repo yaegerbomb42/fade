@@ -156,7 +156,7 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
 
   if (showNicknameInput) {
     return (
-      <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-interface w-full max-w-md px-4">
+      <div className="fixed bottom-24 left-1/2 transform -translate-x-1/2 z-interface w-full max-w-md px-4">
         <form onSubmit={handleNicknameSubmit} className="glass-panel p-6 fade-in">
           <div className="text-center mb-4">
             <Icon name="User" size={24} className="text-primary mx-auto mb-2" />
@@ -196,7 +196,7 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
   }
 
   return (
-    <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-interface w-full max-w-2xl px-4">
+    <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-interface w-full max-w-2xl px-4">
       {/* Emoji Hotbar */}
       {showEmojiBar && (
         <div className="mb-2">

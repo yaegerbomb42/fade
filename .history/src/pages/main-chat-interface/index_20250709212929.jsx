@@ -16,59 +16,11 @@ import TypingIndicator from './components/TypingIndicator';
 import { TopVibesSection, TopVibersSection } from 'components/ui/TopVibesSection';
 import ProfanityFilterToggle from 'components/ui/ProfanityFilterToggle';
 
-// Adsterra Banner Component with Ad-Free Option
+// Adsterra Banner Component
 const AdsterraBanner = () => {
-  const [isAdFree, setIsAdFree] = useState(false);
-  const [adFreeTimeLeft, setAdFreeTimeLeft] = useState(0);
-
   useEffect(() => {
-    // Check if user has active ad-free session
-    const adFreeExpiry = localStorage.getItem('fade-ad-free-expiry');
-    if (adFreeExpiry && Date.now() < parseInt(adFreeExpiry)) {
-      setIsAdFree(true);
-      setAdFreeTimeLeft(parseInt(adFreeExpiry) - Date.now());
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isAdFree && adFreeTimeLeft > 0) {
-      const timer = setInterval(() => {
-        const remaining = adFreeTimeLeft - 1000;
-        if (remaining <= 0) {
-          setIsAdFree(false);
-          setAdFreeTimeLeft(0);
-          localStorage.removeItem('fade-ad-free-expiry');
-        } else {
-          setAdFreeTimeLeft(remaining);
-        }
-      }, 1000);
-      return () => clearInterval(timer);
-    }
-  }, [isAdFree, adFreeTimeLeft]);
-
-  const handleAdClick = () => {
-    // Grant 5 hours of ad-free browsing
-    const fiveHours = 5 * 60 * 60 * 1000;
-    const expiry = Date.now() + fiveHours;
-    localStorage.setItem('fade-ad-free-expiry', expiry.toString());
-    setIsAdFree(true);
-    setAdFreeTimeLeft(fiveHours);
-  };
-
-  const formatTimeLeft = (ms) => {
-    const hours = Math.floor(ms / (1000 * 60 * 60));
-    const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-    return `${hours}h ${minutes}m ad-free`;
-  };
-
-  useEffect(() => {
-    if (isAdFree) return; // Don't load ads if ad-free
-
-    console.log('AdsterraBanner: Attempting to load script...');
-
     // Check if script is already loaded
     if (document.getElementById('adsterra-script-58d94318819023c51d2375249b2d6604')) {
-      console.log('AdsterraBanner: Script already exists');
       return;
     }
 
@@ -79,239 +31,62 @@ const AdsterraBanner = () => {
     script.setAttribute('data-cfasync', 'false');
     script.src = '//pl27125133.profitableratecpm.com/58d94318819023c51d2375249b2d6604/invoke.js';
     
-    script.onload = () => console.log('AdsterraBanner: Script loaded successfully');
-    script.onerror = (error) => console.warn('AdsterraBanner: Script failed to load', error);
-    
     document.head.appendChild(script);
 
-    // Apply custom styling after ad loads - small rectangular format
+    // Apply custom styling after ad loads
     const checkAndStyleAd = () => {
       const adContainer = document.getElementById('container-58d94318819023c51d2375249b2d6604');
-      console.log('AdsterraBanner: Checking for ad container...', !!adContainer, adContainer?.innerHTML?.length || 0);
-      
-      if (adContainer && adContainer.innerHTML.trim()) {
-        console.log('AdsterraBanner: Styling ad container for small format');
-        // Ultra-compact dimensions
-        const maxWidth = '320px';
-        const maxHeight = '100px';
-        
-        // Apply small dimensions to the ad with strict containment
-        adContainer.style.width = maxWidth;
-        adContainer.style.height = maxHeight;
-        adContainer.style.maxWidth = maxWidth;
-        adContainer.style.maxHeight = maxHeight;
+      if (adContainer && adContainer.innerHTML) {
+        // Apply square dimensions to the ad
+        adContainer.style.width = '200px';
+        adContainer.style.height = '200px';
+        adContainer.style.maxWidth = '200px';
+        adContainer.style.maxHeight = '200px';
+        adContainer.style.minWidth = '200px';
+        adContainer.style.minHeight = '200px';
         adContainer.style.overflow = 'hidden';
         adContainer.style.display = 'flex';
         adContainer.style.alignItems = 'center';
         adContainer.style.justifyContent = 'center';
-        adContainer.style.borderRadius = '6px';
+        adContainer.style.borderRadius = '8px';
         adContainer.style.position = 'relative';
-        adContainer.style.zIndex = '1';
-        adContainer.style.cursor = 'pointer';
-        adContainer.style.background = 'rgba(255, 255, 255, 0.05)';
-        adContainer.style.backdropFilter = 'blur(10px)';
-        adContainer.style.border = '1px solid rgba(255, 255, 255, 0.1)';
         
-        // Add click handler for ad-free option
-        adContainer.addEventListener('click', handleAdClick);
-        
-        // Style child elements for ultra-compact format
+        // Style any child elements to fit within the square
         const adElements = adContainer.querySelectorAll('*');
         adElements.forEach(el => {
-          el.style.maxWidth = '310px';
-          el.style.maxHeight = '90px';
+          el.style.maxWidth = '180px';
+          el.style.maxHeight = '180px';
           el.style.overflow = 'hidden';
           el.style.boxSizing = 'border-box';
-          el.style.position = 'relative';
           
           if (el.tagName === 'IMG') {
             el.style.width = 'auto';
             el.style.height = 'auto';
             el.style.objectFit = 'contain';
             el.style.display = 'block';
-            el.style.maxWidth = '310px';
-            el.style.maxHeight = '90px';
           } else if (el.tagName === 'IFRAME') {
-            el.style.width = '310px';
-            el.style.height = '90px';
-            el.style.border = 'none';
+            el.style.width = '180px';
+            el.style.height = '180px';
+            el.style.transform = 'scale(0.9)';
+            el.style.transformOrigin = 'center';
           } else {
             el.style.fontSize = '9px';
-            el.style.lineHeight = '1.1';
+            el.style.lineHeight = '1.2';
             el.style.wordWrap = 'break-word';
           }
         });
-        
-        console.log('AdsterraBanner: Ad successfully styled for compact display');
       } else {
-        console.log('AdsterraBanner: Container not ready, retrying...');
+        // Retry after a short delay
         setTimeout(checkAndStyleAd, 500);
       }
     };
 
-    // Debug: Check script loading and container creation with more detail
-    setTimeout(() => {
-      const loadedScript = document.getElementById('adsterra-script-58d94318819023c51d2375249b2d6604');
-      const container = document.getElementById('container-58d94318819023c51d2375249b2d6604');
-      const allScripts = document.querySelectorAll('script[src*="profitableratecpm.com"]');
-      
-      console.log('AdsterraBanner Debug after 3s:', {
-        scriptLoaded: !!loadedScript,
-        scriptSrc: loadedScript?.src,
-        containerExists: !!container,
-        containerHasContent: !!container?.innerHTML,
-        containerContentLength: container?.innerHTML?.length || 0,
-        allAdsterraScripts: allScripts.length,
-        networkErrors: window.adNetworkErrors || [],
-        cspBlocked: document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content
-      });
-      
-      // Check if there are any network errors
-      if (!container?.innerHTML && loadedScript) {
-        console.warn('AdsterraBanner: Script loaded but no content generated. Possible reasons: ad blocker, CSP, or network issue');
-      }
-    }, 3000);
-
-    // More aggressive retry for ad styling
+    // Start checking for ad load
     setTimeout(checkAndStyleAd, 1000);
-    setTimeout(checkAndStyleAd, 3000);
-    setTimeout(checkAndStyleAd, 5000);
-
-    return () => {
-      const existingScript = document.getElementById('adsterra-script-58d94318819023c51d2375249b2d6604');
-      if (existingScript) {
-        document.head.removeChild(existingScript);
-      }
-    };
-  }, [isAdFree]);
-
-  if (isAdFree) {
-    return (
-      <div className="ad-container-wrapper">
-        <div 
-          style={{
-            width: '320px',
-            height: '100px',
-            maxWidth: '320px',
-            maxHeight: '100px',
-            overflow: 'hidden',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: '6px',
-            backgroundColor: 'rgba(34, 197, 94, 0.1)',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(34, 197, 94, 0.3)',
-            position: 'relative',
-            zIndex: 1
-          }}
-        >
-          <div className="ad-free-timer">
-            🆓 {formatTimeLeft(adFreeTimeLeft)}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="ad-container-wrapper">
-      <div 
-        id="container-58d94318819023c51d2375249b2d6604"
-        style={{
-          width: '320px',
-          height: '100px',
-          maxWidth: '320px',
-          maxHeight: '100px',
-          overflow: 'hidden',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderRadius: '6px',
-          backgroundColor: 'rgba(255, 255, 255, 0.05)',
-          backdropFilter: 'blur(10px)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          position: 'relative',
-          zIndex: 1,
-          cursor: 'pointer'
-        }}
-        onClick={handleAdClick}
-      >
-        {/* Fallback content while ad loads */}
-        <div style={{ 
-          fontSize: '8px', 
-          color: 'rgba(255,255,255,0.3)', 
-          textAlign: 'center',
-          padding: '2px',
-          lineHeight: '1.1'
-        }}>
-          Ad Loading...
-        </div>
-      </div>
-      <div className="ad-free-option" onClick={handleAdClick}>
-        ✨ Click for 5hr ad-free
-      </div>
-    </div>
-  );
-};
-
-// Social Bar Component
-const SocialBar = () => {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [hasError, setHasError] = useState(false);
-
-  useEffect(() => {
-    console.log('SocialBar: Attempting to load script...');
-    
-    // Check if script is already loaded
-    if (document.querySelector('script[src*="1014d6dbb7fb79fc7052e4095ea35eca.js"]')) {
-      console.log('SocialBar: Script already exists');
-      setIsLoaded(true);
-      return;
-    }
-
-    // Create and inject the script
-    const script = document.createElement('script');
-    script.type = 'text/javascript';
-    script.async = true;
-    script.src = '//pl27125481.profitableratecpm.com/10/14/d6/1014d6dbb7fb79fc7052e4095ea35eca.js';
-    
-    script.onload = () => {
-      console.log('SocialBar: Script loaded successfully');
-      setIsLoaded(true);
-    };
-    
-    script.onerror = (error) => {
-      console.warn('SocialBar: Script failed to load', error);
-      setHasError(true);
-    };
-    
-    document.head.appendChild(script);
-
-    // Debug: Check if script gets created with detailed info
-    setTimeout(() => {
-      const loadedScript = document.querySelector('script[src*="1014d6dbb7fb79fc7052e4095ea35eca.js"]');
-      const allSocialScripts = document.querySelectorAll('script[src*="profitableratecpm.com"]');
-      const socialContainer = document.querySelector('.social-bar-container');
-      
-      console.log('SocialBar: Debug after 2s:', {
-        scriptInDOM: !!loadedScript,
-        scriptSrc: loadedScript?.src,
-        totalAdScripts: allSocialScripts.length,
-        socialContainerExists: !!socialContainer,
-        hasError: hasError,
-        isLoaded: isLoaded,
-        cspHeaders: document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content
-      });
-      
-      if (!loadedScript) {
-        console.warn('SocialBar: Script not found in DOM - possible CSP or ad blocker interference');
-      }
-    }, 2000);
 
     return () => {
       // Cleanup script on unmount
-      const existingScript = document.querySelector('script[src*="1014d6dbb7fb79fc7052e4095ea35eca.js"]');
+      const existingScript = document.getElementById('adsterra-script-58d94318819023c51d2375249b2d6604');
       if (existingScript) {
         document.head.removeChild(existingScript);
       }
@@ -319,23 +94,23 @@ const SocialBar = () => {
   }, []);
 
   return (
-    <div className="social-bar-container">
-      {!isLoaded && !hasError && (
-        <div className="glass-panel p-2 text-xs text-text-secondary bg-glass-surface/20">
-          Loading social...
-        </div>
-      )}
-      {hasError && (
-        <div className="glass-panel p-2 text-xs text-error bg-error/20">
-          Social failed
-        </div>
-      )}
-      {isLoaded && (
-        <div className="glass-panel p-1 text-xs text-success bg-success/20">
-          Social loaded
-        </div>
-      )}
-    </div>
+    <div 
+      id="container-58d94318819023c51d2375249b2d6604"
+      style={{
+        width: '200px',
+        height: '200px',
+        maxWidth: '200px',
+        maxHeight: '200px',
+        overflow: 'hidden',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: '8px',
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(255, 255, 255, 0.1)'
+      }}
+    ></div>
   );
 };
 
@@ -1325,36 +1100,6 @@ const MainChatInterface = () => {
     };
   }, [activeChannel?.id]); // Remove messages dependency to prevent interference
 
-  // Ad blocker effect to prevent malicious ads
-  useEffect(() => {
-    const blockMaliciousAds = () => {
-      // Remove any unauthorized popups or overlays
-      const unauthorizedElements = document.querySelectorAll(`
-        body > div:not(#root):not([id*="container-58d94318819023c51d2375249b2d6604"]):not(.social-bar-container),
-        div[style*="position: fixed"]:not([id*="container-58d94318819023c51d2375249b2d6604"]):not(.social-bar-container),
-        div[style*="position: absolute"]:not([id*="container-58d94318819023c51d2375249b2d6604"]):not(.social-bar-container),
-        div[id*="ad"]:not([id*="container-58d94318819023c51d2375249b2d6604"]),
-        div[class*="popup"]:not(.glass-panel),
-        div[class*="overlay"]:not(.glass-panel):not(.glass-button):not(.glass-surface),
-        iframe:not([src*="profitableratecpm.com"])
-      `);
-      
-      unauthorizedElements.forEach(el => {
-        if (el && el.parentNode && 
-            !el.id.includes('container-58d94318819023c51d2375249b2d6604') &&
-            !el.classList.contains('social-bar-container')) {
-          el.remove();
-        }
-      });
-    };
-
-    // Run immediately and then every 2 seconds
-    blockMaliciousAds();
-    const interval = setInterval(blockMaliciousAds, 2000);
-
-    return () => clearInterval(interval);
-  }, []);
-
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
       {/* Animated Background */}
@@ -1457,8 +1202,8 @@ const MainChatInterface = () => {
         messageCount={messages.length}
       />
 
-      {/* Message Display Area - back to original positioning */}
-      <div className="fixed inset-0 pointer-events-none z-messages pt-28 pb-32">
+      {/* Message Display Area - adjusted for square ad banner below chat */}
+      <div className="fixed inset-0 pointer-events-none z-messages pt-28 pb-60">
         {messages
           .filter(message => !message.channelId || message.channelId === activeChannel?.id) // Prevent cross-contamination
           .map((message, index) => (
@@ -1479,7 +1224,7 @@ const MainChatInterface = () => {
         <TypingIndicator />
       )}
 
-      {/* Message Input Panel - back to original position */}
+      {/* Message Input Panel - adjusted positioning for ad banner */}
       <MessageInputPanel
         onSendMessage={handleSendMessage}
         activeChannel={activeChannel}
@@ -1517,17 +1262,12 @@ const MainChatInterface = () => {
         </div>
       )}
 
-      {/* Adsterra Native Banner - small compact rectangle above privacy policy */}
-      <div className="fixed bottom-12 right-4 z-interface">
+      {/* Adsterra Native Banner - compact square below chat input */}
+      <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-interface">
         <AdsterraBanner />
       </div>
 
-      {/* Social Bar - bottom left corner */}
-      <div className="fixed bottom-4 left-4 z-interface">
-        <SocialBar />
-      </div>
-
-      {/* Privacy Policy Link - back to original position */}
+      {/* Privacy Policy Link - positioned in bottom right corner */}
       <div className="fixed bottom-4 right-4 z-interface">
         <Link
           to="/privacy"

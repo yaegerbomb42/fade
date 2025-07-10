@@ -261,27 +261,12 @@ const PrivacyPolicy = () => {
               </p>
               <ul className="list-disc list-inside space-y-2 ml-4">
                 <li>Encrypted data transmission (HTTPS)</li>
-                <li>Secure database storage with access controls</li>
-                <li>Regular security assessments and monitoring</li>
-                <li>Content Security Policy (CSP) to prevent malicious scripts</li>
-                <li>Ad containment systems to block unauthorized advertisements</li>
-                <li>Automated removal of suspicious or malicious content</li>
-                <li>Service worker verification for trusted advertising partners</li>
+                <li>Secure database storage</li>
+                <li>Regular security assessments</li>
+                <li>Access controls and monitoring</li>
               </ul>
-              <div className="bg-success/10 border border-success/30 rounded-lg p-4 mt-4">
-                <h3 className="font-semibold text-success mb-2 flex items-center gap-2">
-                  <Icon name="Shield" size={16} />
-                  Ad Security Measures:
-                </h3>
-                <ul className="list-disc list-inside space-y-1 text-sm">
-                  <li>Strict ad placement restrictions to designated areas only</li>
-                  <li>Automatic blocking of popup and overlay advertisements</li>
-                  <li>Regular monitoring of advertising content for malicious activity</li>
-                  <li>Whitelisted advertising domains to prevent unauthorized ads</li>
-                </ul>
-              </div>
               <p className="text-sm italic">
-                While we strive to protect your information and provide a secure advertising experience, no online system is 100% secure.
+                While we strive to protect your information, no online system is 100% secure.
               </p>
             </div>
           </section>
@@ -300,18 +285,7 @@ const PrivacyPolicy = () => {
                 <li>Request deletion of your data</li>
                 <li>Object to processing of your data</li>
                 <li>Data portability where applicable</li>
-                <li>Opt out of personalized advertising and tracking</li>
-                <li>Control cookie preferences and tracking settings</li>
               </ul>
-              <div className="glass-panel p-4 bg-glass-surface/30 mt-4">
-                <h3 className="font-semibold text-text-primary mb-3">Advertising Rights:</h3>
-                <ul className="list-disc list-inside space-y-1 text-sm">
-                  <li>Right to opt out of targeted/personalized advertising</li>
-                  <li>Right to limit data sharing with advertising partners</li>
-                  <li>Right to know what advertising data is collected about you</li>
-                  <li>Right to request deletion of advertising profile data</li>
-                </ul>
-              </div>
               <p>
                 To exercise these rights, contact us at{' '}
                 <a 

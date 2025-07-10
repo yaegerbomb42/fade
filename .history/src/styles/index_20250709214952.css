@@ -765,7 +765,6 @@ div[class*="overlay"]:not(.glass-panel):not(.glass-button):not(.glass-surface) {
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
-  max-width: 320px !important;
 }
 
 .ad-free-timer {
@@ -777,17 +776,4 @@ div[class*="overlay"]:not(.glass-panel):not(.glass-button):not(.glass-surface) {
   padding: 2px 6px !important;
   border-radius: 4px !important;
   border: 1px solid rgba(34, 197, 94, 0.3) !important;
-  max-width: 320px !important;
-}
-
-/* Responsive ad positioning */
-@media (max-width: 768px) {
-  .ad-container-wrapper {
-    max-width: 280px !important;
-  }
-  
-  #container-58d94318819023c51d2375249b2d6604 {
-    width: 280px !important;
-    max-width: 280px !important;
-  }
 }

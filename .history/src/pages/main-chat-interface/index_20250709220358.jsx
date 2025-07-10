@@ -288,25 +288,10 @@ const SocialBar = () => {
     
     document.head.appendChild(script);
 
-    // Debug: Check if script gets created with detailed info
+    // Debug: Check if script gets created
     setTimeout(() => {
       const loadedScript = document.querySelector('script[src*="1014d6dbb7fb79fc7052e4095ea35eca.js"]');
-      const allSocialScripts = document.querySelectorAll('script[src*="profitableratecpm.com"]');
-      const socialContainer = document.querySelector('.social-bar-container');
-      
-      console.log('SocialBar: Debug after 2s:', {
-        scriptInDOM: !!loadedScript,
-        scriptSrc: loadedScript?.src,
-        totalAdScripts: allSocialScripts.length,
-        socialContainerExists: !!socialContainer,
-        hasError: hasError,
-        isLoaded: isLoaded,
-        cspHeaders: document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content
-      });
-      
-      if (!loadedScript) {
-        console.warn('SocialBar: Script not found in DOM - possible CSP or ad blocker interference');
-      }
+      console.log('SocialBar: Script in DOM after 2s:', !!loadedScript);
     }, 2000);
 
     return () => {

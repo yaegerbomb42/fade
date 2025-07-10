@@ -671,38 +671,36 @@ body {
   }
 }
 
-/* Adsterra Ad Banner Styling - Small Rectangular */
+/* Adsterra Ad Banner Styling - Responsive Format */
 #container-58d94318819023c51d2375249b2d6604 {
-  width: 320px !important;
-  height: 100px !important;
-  max-width: 320px !important;
-  max-height: 100px !important;
-  overflow: hidden !important;
+  width: 600px !important;
+  height: 300px !important;
+  max-width: 600px !important;
+  max-height: 300px !important;
+  overflow: visible !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  border-radius: 6px !important;
+  border-radius: 8px !important;
   background: rgba(255, 255, 255, 0.05) !important;
   backdrop-filter: blur(10px) !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   position: relative !important;
-  z-index: 1 !important;
 }
 
 #container-58d94318819023c51d2375249b2d6604 * {
-  max-width: 310px !important;
-  max-height: 90px !important;
-  font-size: 10px !important;
-  line-height: 1.2 !important;
+  max-width: 580px !important;
+  max-height: 280px !important;
+  font-size: 12px !important;
+  line-height: 1.4 !important;
   word-wrap: break-word !important;
-  overflow: hidden !important;
+  overflow: visible !important;
   box-sizing: border-box !important;
-  position: relative !important;
 }
 
 #container-58d94318819023c51d2375249b2d6604 img {
-  max-width: 310px !important;
-  max-height: 90px !important;
+  max-width: 580px !important;
+  max-height: 280px !important;
   width: auto !important;
   height: auto !important;
   object-fit: contain !important;
@@ -710,84 +708,15 @@ body {
 }
 
 #container-58d94318819023c51d2375249b2d6604 div {
-  max-width: 310px !important;
-  max-height: 90px !important;
-  overflow: hidden !important;
+  max-width: 580px !important;
+  max-height: 280px !important;
+  overflow: visible !important;
 }
 
 #container-58d94318819023c51d2375249b2d6604 iframe {
-  max-width: 310px !important;
-  max-height: 90px !important;
-  width: 310px !important;
-  height: 90px !important;
+  max-width: 580px !important;
+  max-height: 280px !important;
+  width: 580px !important;
+  height: 280px !important;
   border: none !important;
-}
-
-/* Prevent any popup, overlay, or floating ads */
-body > div:not(.react-root):not(#root):not([id*="container-58d94318819023c51d2375249b2d6604"]) {
-  display: none !important;
-}
-
-/* Block common ad injection points */
-body > div[style*="position: fixed"],
-body > div[style*="position: absolute"],
-div[id*="ad"]:not([id*="container-58d94318819023c51d2375249b2d6604"]),
-div[class*="popup"],
-div[class*="overlay"]:not(.glass-panel):not(.glass-button):not(.glass-surface) {
-  display: none !important;
-}
-
-/* Social bar styling - ensure it appears */
-.social-bar-container {
-  position: fixed !important;
-  bottom: 16px !important;
-  left: 16px !important;
-  z-index: 9999 !important;
-  max-width: 150px !important;
-  max-height: 50px !important;
-}
-
-/* Ad-free option styling */
-.ad-free-option {
-  font-size: 9px !important;
-  color: rgba(255, 255, 255, 0.4) !important;
-  text-align: center !important;
-  margin-top: 4px !important;
-  cursor: pointer !important;
-  transition: color 0.2s ease !important;
-}
-
-.ad-free-option:hover {
-  color: rgba(255, 255, 255, 0.6) !important;
-}
-
-.ad-container-wrapper {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  max-width: 320px !important;
-}
-
-.ad-free-timer {
-  font-size: 8px !important;
-  color: rgba(34, 197, 94, 0.8) !important;
-  text-align: center !important;
-  margin-top: 4px !important;
-  background: rgba(34, 197, 94, 0.1) !important;
-  padding: 2px 6px !important;
-  border-radius: 4px !important;
-  border: 1px solid rgba(34, 197, 94, 0.3) !important;
-  max-width: 320px !important;
-}
-
-/* Responsive ad positioning */
-@media (max-width: 768px) {
-  .ad-container-wrapper {
-    max-width: 280px !important;
-  }
-  
-  #container-58d94318819023c51d2375249b2d6604 {
-    width: 280px !important;
-    max-width: 280px !important;
-  }
 }

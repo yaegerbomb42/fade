@@ -300,18 +300,7 @@ const PrivacyPolicy = () => {
                 <li>Request deletion of your data</li>
                 <li>Object to processing of your data</li>
                 <li>Data portability where applicable</li>
-                <li>Opt out of personalized advertising and tracking</li>
-                <li>Control cookie preferences and tracking settings</li>
               </ul>
-              <div className="glass-panel p-4 bg-glass-surface/30 mt-4">
-                <h3 className="font-semibold text-text-primary mb-3">Advertising Rights:</h3>
-                <ul className="list-disc list-inside space-y-1 text-sm">
-                  <li>Right to opt out of targeted/personalized advertising</li>
-                  <li>Right to limit data sharing with advertising partners</li>
-                  <li>Right to know what advertising data is collected about you</li>
-                  <li>Right to request deletion of advertising profile data</li>
-                </ul>
-              </div>
               <p>
                 To exercise these rights, contact us at{' '}
                 <a 

@@ -189,23 +189,12 @@ const PrivacyPolicy = () => {
               <p>We may share data with:</p>
               <ul className="list-disc list-inside space-y-2 ml-4">
                 <li>Analytics providers to understand platform usage</li>
-                <li>Advertising networks (Adsterra, Monetag) for relevant ad delivery</li>
-                <li>Third-party social media platforms through embedded widgets</li>
+                <li>Advertising networks for relevant ad delivery</li>
                 <li>Security services to prevent abuse and spam</li>
                 <li>Legal authorities when required by law</li>
-                <li>Service providers who assist in platform operations</li>
               </ul>
-              <div className="bg-info/10 border border-info/30 rounded-lg p-4 mt-4">
-                <p className="font-medium text-info mb-2">Data Shared with Advertising Partners:</p>
-                <ul className="list-disc list-inside space-y-1 text-sm">
-                  <li>Anonymized usage patterns and demographics</li>
-                  <li>Ad performance metrics (views, clicks, engagement)</li>
-                  <li>Technical information (browser, device type, screen resolution)</li>
-                  <li>Geographic location (country/region level only)</li>
-                </ul>
-              </div>
               <p>
-                You can opt out of personalized advertising through your browser settings, ad network preferences, or by using ad blocking software.
+                You can opt out of personalized advertising through your browser settings or ad network preferences.
               </p>
             </div>
           </section>
@@ -224,27 +213,10 @@ const PrivacyPolicy = () => {
                 <li>Remembering your nickname and preferences</li>
                 <li>Maintaining profanity filter settings</li>
                 <li>Analytics and performance monitoring</li>
-                <li>Ad performance tracking and personalization</li>
-                <li>Social media integration and sharing features</li>
-                <li>Security and fraud prevention</li>
+                <li>Ad performance tracking</li>
               </ul>
-              
-              <div className="glass-panel p-4 bg-glass-surface/30 mt-4">
-                <h3 className="font-semibold text-text-primary mb-3">Types of Cookies We Use:</h3>
-                <div className="space-y-2 text-sm">
-                  <div><strong>Essential Cookies:</strong> Required for basic platform functionality</div>
-                  <div><strong>Analytics Cookies:</strong> Help us understand how users interact with FADE</div>
-                  <div><strong>Advertising Cookies:</strong> Used by our partners (Adsterra, Monetag) to serve relevant ads</div>
-                  <div><strong>Social Media Cookies:</strong> Enable social sharing and embedded content</div>
-                </div>
-              </div>
-              
               <p>
-                You can manage cookies through your browser preferences. However, disabling certain cookies may affect site functionality and your ability to see relevant advertisements.
-              </p>
-              
-              <p className="text-sm italic">
-                Third-party advertising networks may also place their own cookies to track your interests across different websites for targeted advertising purposes.
+                You can manage cookies through your browser preferences, though this may affect site functionality.
               </p>
             </div>
           </section>
@@ -261,27 +233,12 @@ const PrivacyPolicy = () => {
               </p>
               <ul className="list-disc list-inside space-y-2 ml-4">
                 <li>Encrypted data transmission (HTTPS)</li>
-                <li>Secure database storage with access controls</li>
-                <li>Regular security assessments and monitoring</li>
-                <li>Content Security Policy (CSP) to prevent malicious scripts</li>
-                <li>Ad containment systems to block unauthorized advertisements</li>
-                <li>Automated removal of suspicious or malicious content</li>
-                <li>Service worker verification for trusted advertising partners</li>
+                <li>Secure database storage</li>
+                <li>Regular security assessments</li>
+                <li>Access controls and monitoring</li>
               </ul>
-              <div className="bg-success/10 border border-success/30 rounded-lg p-4 mt-4">
-                <h3 className="font-semibold text-success mb-2 flex items-center gap-2">
-                  <Icon name="Shield" size={16} />
-                  Ad Security Measures:
-                </h3>
-                <ul className="list-disc list-inside space-y-1 text-sm">
-                  <li>Strict ad placement restrictions to designated areas only</li>
-                  <li>Automatic blocking of popup and overlay advertisements</li>
-                  <li>Regular monitoring of advertising content for malicious activity</li>
-                  <li>Whitelisted advertising domains to prevent unauthorized ads</li>
-                </ul>
-              </div>
               <p className="text-sm italic">
-                While we strive to protect your information and provide a secure advertising experience, no online system is 100% secure.
+                While we strive to protect your information, no online system is 100% secure.
               </p>
             </div>
           </section>
@@ -300,18 +257,7 @@ const PrivacyPolicy = () => {
                 <li>Request deletion of your data</li>
                 <li>Object to processing of your data</li>
                 <li>Data portability where applicable</li>
-                <li>Opt out of personalized advertising and tracking</li>
-                <li>Control cookie preferences and tracking settings</li>
               </ul>
-              <div className="glass-panel p-4 bg-glass-surface/30 mt-4">
-                <h3 className="font-semibold text-text-primary mb-3">Advertising Rights:</h3>
-                <ul className="list-disc list-inside space-y-1 text-sm">
-                  <li>Right to opt out of targeted/personalized advertising</li>
-                  <li>Right to limit data sharing with advertising partners</li>
-                  <li>Right to know what advertising data is collected about you</li>
-                  <li>Right to request deletion of advertising profile data</li>
-                </ul>
-              </div>
               <p>
                 To exercise these rights, contact us at{' '}
                 <a 
