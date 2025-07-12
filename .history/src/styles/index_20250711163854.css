@@ -1,38 +1,15 @@
 /* src/styles/index.css */
-/* Mobile-first responsive design */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: Inter;
+}
+
 * {
   box-sizing: border-box;
   line-height: normal;
   font-family: inherit;
   margin: unset;
-  /* Better touch interactions on mobile */
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  -khtml-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
-}
-
-/* Allow text selection for message content */
-.message-content, .glass-panel p, .glass-panel span {
-  -webkit-user-select: text !important;
-  -moz-user-select: text !important;
-  -ms-user-select: text !important;
-  user-select: text !important;
-}
-
-body {
-  margin: 0;
-  padding: 0;
-  font-family: Inter;
-  /* Prevent bounce scrolling on iOS */
-  overscroll-behavior: none;
-  /* Improve font rendering on mobile */
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  /* Prevent zoom on input focus on iOS */
-  -webkit-text-size-adjust: 100%;
 }
 
 @media (min-width: 1200px) {
@@ -760,13 +737,6 @@ div[class*="overlay"]:not(.glass-panel):not(.glass-button):not(.glass-surface) {
   display: none !important;
 }
 
-/* 
- * ===== AD-RELATED CSS (CURRENTLY UNUSED) =====
- * The following CSS classes are preserved for potential future ad re-implementation
- * but are currently not in use as all advertising components have been removed.
- * This includes: social bar, ad banners, mobile ad positioning, and ad-free options.
- */
-
 /* Social bar styling - ensure it appears */
 .social-bar-container {
   position: fixed !important;
@@ -808,72 +778,6 @@ div[class*="overlay"]:not(.glass-panel):not(.glass-button):not(.glass-surface) {
   border-radius: 4px !important;
   border: 1px solid rgba(34, 197, 94, 0.3) !important;
   max-width: 320px !important;
-}
-
-/* Mobile-specific positioning classes */
-.mobile-ad-banner {
-  z-index: 9998 !important;
-}
-
-.mobile-social-bar {
-  z-index: 9999 !important;
-}
-
-.mobile-privacy-link {
-  z-index: 9997 !important;
-}
-
-/* Ensure ads don't overlap with system UI on mobile */
-@supports (padding-bottom: env(safe-area-inset-bottom)) {
-  .mobile-ad-banner {
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
-  }
-  
-  .mobile-social-bar {
-    bottom: calc(4px + env(safe-area-inset-bottom, 0px)) !important;
-  }
-  
-  .mobile-privacy-link {
-    bottom: calc(4px + env(safe-area-inset-bottom, 0px)) !important;
-  }
-}
-
-/* Better mobile ad containment */
-@media (max-width: 768px) {
-  .mobile-ad-banner {
-    right: 8px !important;
-    bottom: 80px !important;
-  }
-  
-  .mobile-social-bar {
-    left: 8px !important;
-    bottom: 8px !important;
-  }
-  
-  .mobile-privacy-link {
-    right: 8px !important;
-    bottom: 8px !important;
-    font-size: 10px !important;
-  }
-}
-
-@media (max-width: 480px) {
-  .mobile-ad-banner {
-    right: 4px !important;
-    bottom: 70px !important;
-  }
-  
-  .mobile-social-bar {
-    left: 4px !important;
-    bottom: 4px !important;
-  }
-  
-  .mobile-privacy-link {
-    right: 4px !important;
-    bottom: 4px !important;
-    font-size: 9px !important;
-    padding: 4px 8px !important;
-  }
 }
 
 /* Responsive ad positioning and mobile support */
@@ -1053,68 +957,5 @@ div[class*="overlay"]:not(.glass-panel):not(.glass-button):not(.glass-surface) {
   
   .social-bar-container {
     transform: scale(0.8) !important;
-  }
-}
-
-/* Mobile and desktop specific ad styling */
-.mobile-ad {
-  transform-origin: center;
-}
-
-.mobile-social {
-  transform-origin: bottom left;
-}
-
-.mobile-device .glass-panel {
-  backdrop-filter: blur(8px) !important; /* Reduce blur for better mobile performance */
-}
-
-.mobile-device .message-bubble {
-  backdrop-filter: blur(6px) !important;
-}
-
-/* iOS specific fixes */
-.ios-device {
-  /* Fix for iOS viewport bugs */
-  -webkit-overflow-scrolling: touch;
-}
-
-.ios-device .glass-panel {
-  /* iOS safari backdrop-filter performance fix */
-  will-change: transform;
-}
-
-/* Android specific fixes */
-.android-device .glass-panel {
-  /* Android Chrome backdrop-filter alternative */
-  background-color: rgba(23, 23, 37, 0.85) !important;
-}
-
-/* Devices with notches */
-.has-notch .mobile-ad-banner {
-  bottom: calc(12px + env(safe-area-inset-bottom, 12px)) !important;
-}
-
-.has-notch .mobile-social-bar {
-  bottom: calc(4px + env(safe-area-inset-bottom, 4px)) !important;
-}
-
-.has-notch .mobile-privacy-link {
-  bottom: calc(4px + env(safe-area-inset-bottom, 4px)) !important;
-}
-
-/* High DPI displays */
-@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
-  .ad-container-wrapper {
-    image-rendering: -webkit-optimize-contrast;
-    image-rendering: crisp-edges;
-  }
-}
-
-/* Dark mode improvements for mobile */
-@media (prefers-color-scheme: dark) {
-  .mobile-device .glass-panel {
-    background-color: rgba(15, 15, 15, 0.9) !important;
-    border-color: rgba(255, 255, 255, 0.05) !important;
   }
 }

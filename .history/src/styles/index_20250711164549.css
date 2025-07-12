@@ -760,13 +760,6 @@ div[class*="overlay"]:not(.glass-panel):not(.glass-button):not(.glass-surface) {
   display: none !important;
 }
 
-/* 
- * ===== AD-RELATED CSS (CURRENTLY UNUSED) =====
- * The following CSS classes are preserved for potential future ad re-implementation
- * but are currently not in use as all advertising components have been removed.
- * This includes: social bar, ad banners, mobile ad positioning, and ad-free options.
- */
-
 /* Social bar styling - ensure it appears */
 .social-bar-container {
   position: fixed !important;

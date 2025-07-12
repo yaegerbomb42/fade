@@ -118,44 +118,32 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
 
   const handleSendMessage = (e) => {
     e.preventDefault();
-    if (!message.trim() || !nickname.trim() || !activeChannel) {
-      console.warn('Cannot send message: missing required fields', {
-        hasMessage: !!message.trim(),
-        hasNickname: !!nickname.trim(),
-        hasActiveChannel: !!activeChannel
-      });
-      return;
-    }
+    if (!message.trim() || !nickname.trim() || !activeChannel) return;
     
     // Check if already in cooldown/reload state
     if (cooldownTime > 0 || isReloading) {
-      console.warn('Cannot send message: currently in cooldown');
       return;
     }
     
-    try {
-      // Send message
-      onSendMessage({
-        text: message.trim(),
-        author: nickname.trim(),
-        channel: activeChannel.id,
-        timestamp: new Date().toISOString(), // Fix: Use ISO string instead of Date object
-        userId: getUserId() // Add unique user ID to message
-      });
-      
-      setLastMessage(message.trim());
-      setLastMessageTime(Date.now());
-      setMessage('');
-      onTypingChange(false);
-      if (typingTimeout) {
-        clearTimeout(typingTimeout);
-      }
-      
-      // Always show reload animation after sending a message
-      startReloadAnimation();
-    } catch (error) {
-      console.error('Error sending message:', error);
+    // Send message
+    onSendMessage({
+      text: message.trim(),
+      author: nickname.trim(),
+      channel: activeChannel.id,
+      timestamp: new Date().toISOString(), // Fix: Use ISO string instead of Date object
+      userId: getUserId() // Add unique user ID to message
+    });
+    
+    setLastMessage(message.trim());
+    setLastMessageTime(Date.now());
+    setMessage('');
+    onTypingChange(false);
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
     }
+    
+    // Always show reload animation after sending a message
+    startReloadAnimation();
   };
 
   const handleKeyPress = (e) => {

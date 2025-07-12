@@ -166,54 +166,156 @@ const MainChatInterface = () => {
     setTimeout(() => setShowShareNotification(false), 2000);
   };
 
-  // Simple and reliable lane system - no overlaps guaranteed
-  const lanes = 10; // Number of horizontal lanes
-  const laneHeight = 40; // Fixed vertical spacing between lanes
-  const topMargin = 120; // Start position from top
-
-  // Track when each lane was last used to prevent overlaps
-  const laneOccupancy = useRef(new Array(lanes).fill(0));
-
+  // Highway lane system with dynamic sizing and collision avoidance
   const findAvailablePosition = useCallback((messageId, messageText = '', preferredLane = null) => {
-    const now = Date.now();
-    const minTimeBetweenMessages = 1200; // Minimum time between messages in same lane
+    const lanes = 12; // Increased to 12 lanes for better separation like highway lanes
+    const usableHeight = 75; // Use 75% of screen height (10% top margin, 15% bottom margin)
+    const topMargin = 12.5; // Start lanes at 12.5% from top
+    const laneHeight = usableHeight / lanes; // ~6.25% per lane
     
-    // Find the lane that's been free the longest
-    let bestLane = 0;
-    let oldestTime = laneOccupancy.current[0];
+    // Calculate message dimensions based on content
+    const estimatedCharWidth = 0.6; // Approximate character width in viewport percentage
+    const messageLength = messageText.length || 50; // Default estimate
+    const messageWidth = Math.min(Math.max(messageLength * estimatedCharWidth, 15), 35); // 15-35% width
+    const messageHeight = Math.ceil(messageLength / 60) * 3 + 2; // Multi-line height estimation
     
-    for (let i = 1; i < lanes; i++) {
-      if (laneOccupancy.current[i] < oldestTime) {
-        oldestTime = laneOccupancy.current[i];
-        bestLane = i;
-      }
-    }
+    // Dynamic spacing based on message size and traffic density
+    const baseVerticalSpacing = Math.max(8, messageHeight + 2); // Minimum 8% or message height + 2%
+    const baseHorizontalSpacing = Math.max(20, messageWidth + 5); // Minimum 20% or message width + 5%
     
-    // If the best lane was used too recently, find any available lane
-    if (now - laneOccupancy.current[bestLane] < minTimeBetweenMessages) {
-      for (let i = 0; i < lanes; i++) {
-        if (now - laneOccupancy.current[i] >= minTimeBetweenMessages) {
-          bestLane = i;
-          break;
+    // Get current active positions with size information
+    const activePositions = Array.from(messagePositions.current.values())
+      .filter(pos => pos.left > -20) // Consider messages still approaching screen
+      .map(pos => {
+        const speed = pos.animationSpeed || 2;
+        const projectedLeft = pos.left - (speed * 3); // Project 3 seconds ahead
+        return {
+          ...pos,
+          projectedLeft,
+          messageWidth: pos.messageWidth || 25, // Default width
+          messageHeight: pos.messageHeight || 5, // Default height
+          // Calculate collision bounds
+          topBound: pos.top - (pos.messageHeight || 5) / 2,
+          bottomBound: pos.top + (pos.messageHeight || 5) / 2,
+          leftBound: Math.min(pos.left, projectedLeft) - (pos.messageWidth || 25) / 2,
+          rightBound: Math.max(pos.left, projectedLeft) + (pos.messageWidth || 25) / 2
+        };
+      });
+    
+    // Traffic density analysis for speed adjustment
+    const trafficDensity = activePositions.length;
+    const congestionMultiplier = Math.min(1 + (trafficDensity / 8), 2.5); // Up to 2.5x speed increase
+    
+    // Try lanes systematically, starting with preferred lane
+    const lanesToTry = preferredLane !== null 
+      ? [preferredLane, ...Array.from({length: lanes}, (_, i) => i).filter(i => i !== preferredLane)]
+      : Array.from({length: lanes}, (_, i) => i);
+    
+    for (const laneIndex of lanesToTry) {
+      const laneCenter = topMargin + (laneIndex * laneHeight) + (laneHeight / 2);
+      
+      // Try multiple positions within each lane
+      const lanePositions = [
+        laneCenter, // Center of lane
+        laneCenter - laneHeight * 0.25, // Upper quarter
+        laneCenter + laneHeight * 0.25, // Lower quarter
+        laneCenter - laneHeight * 0.4, // Near top
+        laneCenter + laneHeight * 0.4, // Near bottom
+      ];
+      
+      for (const candidateTop of lanePositions) {
+        // Ensure position is within safe driving bounds
+        if (candidateTop < 10 || candidateTop > 85) continue;
+        
+        // Calculate collision bounds for this candidate position
+        const candidateTopBound = candidateTop - messageHeight / 2;
+        const candidateBottomBound = candidateTop + messageHeight / 2;
+        const candidateLeftBound = 105; // Start position
+        const candidateRightBound = candidateLeftBound + messageWidth;
+        
+        // Check for highway collisions with all active traffic
+        const wouldCollide = activePositions.some(traffic => {
+          // Vertical overlap check
+          const verticalOverlap = !(candidateBottomBound < traffic.topBound || 
+                                   candidateTopBound > traffic.bottomBound);
+          
+          // Horizontal overlap check (considering movement)
+          const horizontalOverlap = !(candidateRightBound < traffic.leftBound || 
+                                     candidateLeftBound > traffic.rightBound);
+          
+          // Lane sharing check - allow multiple messages in same lane if well spaced
+          const sameLane = Math.abs(traffic.top - candidateTop) < laneHeight;
+          const tooCloseHorizontally = Math.abs(traffic.left - candidateLeftBound) < baseHorizontalSpacing;
+          
+          return (verticalOverlap && horizontalOverlap) || (sameLane && tooCloseHorizontally);
+        });
+        
+        if (!wouldCollide) {
+          // Found a clear lane position
+          const finalTop = Math.max(10, Math.min(85, candidateTop));
+          const startPosition = 105 + Math.random() * 5; // 105-110% start with slight randomization
+          const animationSpeed = (2 + Math.random() * 0.5) * congestionMultiplier; // Dynamic speed
+          
+          const position = {
+            lane: laneIndex,
+            top: finalTop,
+            left: startPosition,
+            horizontalStart: startPosition,
+            animationSpeed,
+            messageWidth,
+            messageHeight,
+            createdAt: Date.now(),
+            congestionLevel: trafficDensity,
+            // Reserved space for this message
+            reservedSpace: {
+              topBound: finalTop - messageHeight / 2,
+              bottomBound: finalTop + messageHeight / 2,
+              leftBound: startPosition,
+              rightBound: -15, // End position
+              width: messageWidth,
+              height: messageHeight
+            }
+          };
+          
+          // Register this position in traffic control
+          messagePositions.current.set(messageId, position);
+          
+          console.log(`Lane assigned: ${laneIndex}, Speed: ${animationSpeed.toFixed(1)}x, Traffic: ${trafficDensity}`);
+          return position;
         }
       }
     }
     
-    // Mark this lane as occupied
-    laneOccupancy.current[bestLane] = now;
+    // Traffic jam - use emergency overflow lane with delay
+    const emergencyDelay = trafficDensity * 1.5; // 1.5 second delay per existing message
+    const emergencyLane = Math.floor(Math.random() * lanes);
+    const emergencyTop = topMargin + (emergencyLane * laneHeight) + (laneHeight / 2);
+    const emergencySpeed = 3 * congestionMultiplier; // Faster to catch up
     
-    const laneTop = topMargin + (bestLane * laneHeight);
-    const position = {
-      lane: bestLane,
-      top: laneTop,
-      left: 105,
-      horizontalStart: 105,
-      animationSpeed: 2,
-      createdAt: now
+    const emergencyPosition = {
+      lane: emergencyLane,
+      top: Math.max(10, Math.min(85, emergencyTop)),
+      left: 115 + emergencyDelay * 8, // Delayed start position
+      horizontalStart: 115 + emergencyDelay * 8,
+      animationSpeed: emergencySpeed,
+      messageWidth,
+      messageHeight,
+      createdAt: Date.now(),
+      congestionLevel: trafficDensity,
+      isEmergencyLane: true,
+      reservedSpace: {
+        topBound: emergencyTop - messageHeight / 2,
+        bottomBound: emergencyTop + messageHeight / 2,
+        leftBound: 115 + emergencyDelay * 8,
+        rightBound: -15,
+        width: messageWidth,
+        height: messageHeight
+      }
     };
     
-    messagePositions.current.set(messageId, position);
-    return position;
+    messagePositions.current.set(messageId, emergencyPosition);
+    console.log(`Emergency lane used: ${emergencyLane}, Delay: ${emergencyDelay}s, Speed: ${emergencySpeed.toFixed(1)}x`);
+    return emergencyPosition;
   }, []);
 
   // Enhanced position cleanup with reservation management
@@ -245,16 +347,39 @@ const MainChatInterface = () => {
     return () => clearInterval(cleanupInterval);
   }, []);
 
-  // Simplified position update to prevent performance issues
+  // Enhanced position update with collision avoidance during animation
   const updateMessagePosition = useCallback((messageId, newLeft) => {
     const position = messagePositions.current.get(messageId);
     if (!position) return;
     
-    // Simple position update without complex collision checking
-    messagePositions.current.set(messageId, { ...position, left: newLeft });
+    // Update position and check for any real-time collisions
+    const updatedPosition = { ...position, left: newLeft };
+    
+    // Check if this update would cause collision with other messages
+    const otherPositions = Array.from(messagePositions.current.entries())
+      .filter(([id, _]) => id !== messageId)
+      .map(([_, pos]) => pos);
+    
+    const wouldCollide = otherPositions.some(otherPos => {
+      const verticalDistance = Math.abs(otherPos.top - updatedPosition.top);
+      const horizontalDistance = Math.abs(otherPos.left - newLeft);
+      return verticalDistance < 12 && horizontalDistance < 20; // Collision threshold
+    });
+    
+    if (!wouldCollide) {
+      messagePositions.current.set(messageId, updatedPosition);
+    } else {
+      // If collision detected, slightly adjust vertical position
+      const adjustment = (Math.random() - 0.5) * 6; // ±3% adjustment
+      const adjustedPosition = {
+        ...updatedPosition,
+        top: Math.max(10, Math.min(85, updatedPosition.top + adjustment))
+      };
+      messagePositions.current.set(messageId, adjustedPosition);
+    }
   }, []);
 
-  // Highway traffic management - adaptive queue processing with speed control
+  // Process messages from queue with enhanced spacing control
   useEffect(() => {
     if (messageQueue.length === 0) return;
 
@@ -267,21 +392,39 @@ const MainChatInterface = () => {
           const exists = msgs.some(m => m.id === next.id);
           if (!exists && next && next.id && typeof next === 'object') {
             
-            const messageText = next.text || '';
-            const position = findAvailablePosition(next.id, messageText);
+            // Enhanced spacing based on current message density
+            const activeMessageCount = msgs.length;
+            const congestionLevel = Math.min(activeMessageCount / 12, 1); // 0-1 based on active messages
             
-            // Simple message object
+            // Adaptive duration based on congestion and activity
+            const baseMinDuration = 18; // Slightly increased for better spacing
+            const baseMaxDuration = 50; // Increased max for sparse periods
+            
+            // More aggressive speed adjustment for congestion control
+            const minDuration = baseMinDuration * (1 - congestionLevel * 0.4); // Up to 40% faster
+            const maxDuration = baseMaxDuration * (1 + congestionLevel * 0.3); // Up to 30% slower
+            
+            const duration = maxDuration - ((activityLevel - 1) / 4) * (maxDuration - minDuration);
+            
+            // Find optimal position with enhanced collision detection
+            const position = findAvailablePosition(next.id, next.preferredLane);
+            
+            // Enhanced message validation and properties
             const validatedMessage = {
               id: next.id,
-              text: messageText,
+              text: next.text || 'No content',
               author: next.author || 'Anonymous',
               timestamp: next.timestamp || new Date().toISOString(),
               reactions: next.reactions || { thumbsUp: 0, thumbsDown: 0 },
               isUserMessage: next.isUserMessage || false,
               userId: next.userId || null,
-              animationDuration: '25s', // Fixed duration for simplicity
+              animationDuration: `${duration}s`,
               channelId: activeChannel?.id,
-              position: position
+              position: position,
+              onPositionUpdate: updateMessagePosition,
+              onRemove: removeMessagePosition,
+              spacingPriority: position.isDelayed ? 'low' : 'normal', // Priority for spacing
+              reservedSpace: position.reservedSpace // Reserved collision area
             };
             
             msgs = [...msgs, validatedMessage];
@@ -294,10 +437,20 @@ const MainChatInterface = () => {
       });
     };
 
-    // Simple processing - one message every 500ms to prevent overlaps
-    const interval = setInterval(processQueue, 500);
+    // Enhanced queue processing with intelligent spacing intervals
+    const queueLength = messageQueue.length;
+    const currentMessageCount = messages.length;
+    
+    // Base interval adjusted for both queue length and active message density
+    const baseInterval = 150; // Slightly increased base for better spacing
+    const congestionMultiplier = Math.max(0.3, 1 - (currentMessageCount / 15)); // Slow down when congested
+    const queueMultiplier = Math.max(0.4, 1 - (queueLength / 8)); // Speed up when queue is long
+    
+    const processInterval = Math.floor(baseInterval * congestionMultiplier * queueMultiplier);
+    
+    const interval = setInterval(processQueue, Math.max(50, processInterval)); // Minimum 50ms
     return () => clearInterval(interval);
-  }, [messageQueue.length, activeChannel?.id, findAvailablePosition]);
+  }, [messageQueue.length, messages.length, activityLevel, activeChannel?.id, findAvailablePosition, updateMessagePosition, removeMessagePosition]);
 
   // Update activity level calculation based on channel message flow
   useEffect(() => {
@@ -957,7 +1110,7 @@ const MainChatInterface = () => {
     permanentlyProcessedIds.current.add(id);
   }, [activeChannel]);
 
-  // Highway system server-synchronized positioning with 12-lane support
+  // Enhanced server-synchronized positioning with improved collision avoidance
   const getServerSyncedMessagePosition = (messageTimestamp, channelId) => {
     // Create deterministic position based on message timestamp and channel
     const messageTime = new Date(messageTimestamp).getTime();
@@ -973,33 +1126,23 @@ const MainChatInterface = () => {
     const messageAge = now - messageTime;
     const progress = Math.min(Math.max(0, messageAge / REGULAR_MESSAGE_FLOW_DURATION), 1);
     
-    // Updated highway system (12 lanes)
-    const lanes = 12;
+    // Updated to match new lane system (8 lanes instead of 6)
+    const lanes = 8;
     const lane = Math.floor(pseudoRandom * lanes);
-    const usableHeight = 75;
-    const topMargin = 12.5;
-    const laneHeight = usableHeight / lanes; // ~6.25% per lane
-    const laneCenter = topMargin + (lane * laneHeight) + (laneHeight / 2);
+    const laneHeight = 70 / lanes; // ~8.75% per lane
+    const baseTop = 15 + (lane * laneHeight); // Start at 15% like in findAvailablePosition
     
-    // Estimate message dimensions for consistent server sync
-    const estimatedWidth = 20 + (pseudoRandom * 15); // 20-35% width
-    const estimatedHeight = 4 + (pseudoRandom * 3); // 4-7% height
+    // Reduced vertical offset for better consistency
+    const verticalOffset = (pseudoRandom - 0.5) * 6; // ±3% instead of ±4%
     
-    // Reduced vertical offset for highway discipline
-    const verticalOffset = (pseudoRandom - 0.5) * 4; // ±2% for lane discipline
-    
-    // Horizontal movement with improved easing and dynamic speed
-    const trafficDensity = Math.floor(pseudoRandom * 15); // Simulate traffic
-    const speedMultiplier = 1 + (trafficDensity / 10); // Dynamic speed based on traffic
-    const baseSpeed = 2.5 * speedMultiplier;
-    
+    // Horizontal movement with improved easing
     const startX = 110;
-    const endX = -15;
-    const easeOut = (t) => 1 - Math.pow(1 - t, 2.5); // Adjusted easing for highway feel
+    const endX = -15; // Match the new system
+    const easeOut = (t) => 1 - Math.pow(1 - t, 3); // Smooth ease out
     const currentX = startX - (easeOut(progress) * (startX - endX));
     
-    // Calculate final position with highway bounds
-    const finalTop = Math.max(10, Math.min(85, laneCenter + verticalOffset));
+    // Calculate final position with better bounds
+    const finalTop = Math.max(10, Math.min(85, baseTop + verticalOffset));
     
     return {
       top: finalTop,
@@ -1009,22 +1152,15 @@ const MainChatInterface = () => {
       isExpired: progress >= 1,
       messageAge,
       calculatedAt: now,
-      // Highway-specific attributes
-      messageWidth: estimatedWidth,
-      messageHeight: estimatedHeight,
-      animationSpeed: baseSpeed,
-      laneCenter: laneCenter,
-      // Spacing reservation consistent with highway system
+      // Add spacing reservation for consistency with new system
       reservedSpace: {
-        topBound: finalTop - estimatedHeight / 2,
-        bottomBound: finalTop + estimatedHeight / 2,
-        leftBound: currentX - estimatedWidth / 2,
-        rightBound: currentX + estimatedWidth / 2,
-        width: estimatedWidth,
-        height: estimatedHeight
+        topBound: finalTop - 7.5, // Half of minimum spacing
+        bottomBound: finalTop + 7.5,
+        leftBound: currentX,
+        rightBound: endX
       },
-      createdAt: messageTime,
-      congestionLevel: trafficDensity
+      animationSpeed: 2.5, // Standard speed
+      createdAt: messageTime
     };
   };
 
@@ -1109,7 +1245,6 @@ const MainChatInterface = () => {
               onChannelChange={handleChannelChange}
               activeChannel={activeChannel}
               channelUserCounts={channelUserCounts}
-              initialCollapsed={!!urlChannelId} // Collapse if channel was selected from URL
               className={activeChannel ? 'w-10 h-10' : ''}
             />
             {activeChannel && (

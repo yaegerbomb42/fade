@@ -214,6 +214,34 @@ const MainChatInterface = () => {
     
     messagePositions.current.set(messageId, position);
     return position;
+      }
+    }
+    
+    // Fallback - use a random lane with delay
+    const fallbackLane = Math.floor(Math.random() * lanes);
+    const fallbackTop = topMargin + (fallbackLane * laneHeight);
+    const position = {
+      lane: fallbackLane,
+      top: fallbackTop,
+      left: 115 + Math.random() * 10, // Delayed start
+      horizontalStart: 115,
+      animationSpeed: 2.5,
+      messageWidth,
+      messageHeight,
+      createdAt: Date.now(),
+      isDelayed: true,
+      reservedSpace: {
+        topBound: fallbackTop - 5,
+        bottomBound: fallbackTop + 5,
+        leftBound: 115,
+        rightBound: -15,
+        width: messageWidth,
+        height: messageHeight
+      }
+    };
+    
+    messagePositions.current.set(messageId, position);
+    return position;
   }, []);
 
   // Enhanced position cleanup with reservation management
@@ -267,10 +295,28 @@ const MainChatInterface = () => {
           const exists = msgs.some(m => m.id === next.id);
           if (!exists && next && next.id && typeof next === 'object') {
             
-            const messageText = next.text || '';
-            const position = findAvailablePosition(next.id, messageText);
+            // Highway traffic analysis
+            const activeTraffic = msgs.length;
+            const queueBacklog = prev.length;
+            const totalTrafficPressure = activeTraffic + queueBacklog;
             
-            // Simple message object
+            // Dynamic speed adjustment - like highway traffic management
+            const congestionLevel = Math.min(totalTrafficPressure / 15, 1); // 0-1 scale
+            const baseMinDuration = 20; // Slower base for better spacing
+            const baseMaxDuration = 55; // Longer max for sparse traffic
+            
+            // Aggressive speed scaling for traffic management
+            const speedMultiplier = 1 + (congestionLevel * 1.5); // Up to 2.5x speed in heavy traffic
+            const minDuration = baseMinDuration / speedMultiplier;
+            const maxDuration = baseMaxDuration / (1 + congestionLevel * 0.3);
+            
+            const duration = maxDuration - ((activityLevel - 1) / 4) * (maxDuration - minDuration);
+            
+            // Find optimal highway position with message content analysis
+            const messageText = next.text || '';
+            const position = findAvailablePosition(next.id, messageText, next.preferredLane);
+            
+            // Enhanced message with highway attributes
             const validatedMessage = {
               id: next.id,
               text: messageText,
@@ -279,13 +325,28 @@ const MainChatInterface = () => {
               reactions: next.reactions || { thumbsUp: 0, thumbsDown: 0 },
               isUserMessage: next.isUserMessage || false,
               userId: next.userId || null,
-              animationDuration: '25s', // Fixed duration for simplicity
+              animationDuration: `${duration}s`,
               channelId: activeChannel?.id,
-              position: position
+              position: position,
+              onPositionUpdate: updateMessagePosition,
+              onRemove: removeMessagePosition,
+              // Highway-specific attributes
+              messageWidth: position.messageWidth,
+              messageHeight: position.messageHeight,
+              laneNumber: position.lane,
+              trafficSpeed: position.animationSpeed,
+              congestionLevel: totalTrafficPressure,
+              isEmergencyLane: position.isEmergencyLane || false,
+              reservedSpace: position.reservedSpace
             };
             
             msgs = [...msgs, validatedMessage];
             setMessageTimestamps(t => [...t, Date.now()]);
+            
+            // Log traffic info for debugging
+            if (totalTrafficPressure > 10) {
+              console.log(`Heavy traffic: ${totalTrafficPressure} total, Speed: ${speedMultiplier.toFixed(1)}x`);
+            }
           }
           return msgs;
         });
@@ -294,10 +355,30 @@ const MainChatInterface = () => {
       });
     };
 
-    // Simple processing - one message every 500ms to prevent overlaps
-    const interval = setInterval(processQueue, 500);
+    // Adaptive processing intervals based on traffic conditions
+    const queueLength = messageQueue.length;
+    const currentTraffic = messages.length;
+    const totalLoad = queueLength + currentTraffic;
+    
+    // Highway-style adaptive timing
+    let processInterval;
+    if (totalLoad > 20) {
+      processInterval = 75; // Rush hour - process very quickly
+    } else if (totalLoad > 12) {
+      processInterval = 100; // Heavy traffic
+    } else if (totalLoad > 6) {
+      processInterval = 150; // Moderate traffic
+    } else {
+      processInterval = 200; // Light traffic - more spacing
+    }
+    
+    // Apply queue pressure adjustment
+    const queuePressureMultiplier = Math.max(0.4, 1 - (queueLength / 10));
+    processInterval = Math.floor(processInterval * queuePressureMultiplier);
+    
+    const interval = setInterval(processQueue, Math.max(50, processInterval));
     return () => clearInterval(interval);
-  }, [messageQueue.length, activeChannel?.id, findAvailablePosition]);
+  }, [messageQueue.length, messages.length, activityLevel, activeChannel?.id, findAvailablePosition, updateMessagePosition, removeMessagePosition]);
 
   // Update activity level calculation based on channel message flow
   useEffect(() => {
@@ -1109,7 +1190,6 @@ const MainChatInterface = () => {
               onChannelChange={handleChannelChange}
               activeChannel={activeChannel}
               channelUserCounts={channelUserCounts}
-              initialCollapsed={!!urlChannelId} // Collapse if channel was selected from URL
               className={activeChannel ? 'w-10 h-10' : ''}
             />
             {activeChannel && (

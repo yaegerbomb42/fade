@@ -294,10 +294,30 @@ const MainChatInterface = () => {
       });
     };
 
-    // Simple processing - one message every 500ms to prevent overlaps
-    const interval = setInterval(processQueue, 500);
+    // Adaptive processing intervals based on traffic conditions
+    const queueLength = messageQueue.length;
+    const currentTraffic = messages.length;
+    const totalLoad = queueLength + currentTraffic;
+    
+    // Highway-style adaptive timing
+    let processInterval;
+    if (totalLoad > 20) {
+      processInterval = 75; // Rush hour - process very quickly
+    } else if (totalLoad > 12) {
+      processInterval = 100; // Heavy traffic
+    } else if (totalLoad > 6) {
+      processInterval = 150; // Moderate traffic
+    } else {
+      processInterval = 200; // Light traffic - more spacing
+    }
+    
+    // Apply queue pressure adjustment
+    const queuePressureMultiplier = Math.max(0.4, 1 - (queueLength / 10));
+    processInterval = Math.floor(processInterval * queuePressureMultiplier);
+    
+    const interval = setInterval(processQueue, Math.max(50, processInterval));
     return () => clearInterval(interval);
-  }, [messageQueue.length, activeChannel?.id, findAvailablePosition]);
+  }, [messageQueue.length, messages.length, activityLevel, activeChannel?.id, findAvailablePosition, updateMessagePosition, removeMessagePosition]);
 
   // Update activity level calculation based on channel message flow
   useEffect(() => {

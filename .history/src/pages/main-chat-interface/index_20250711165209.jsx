@@ -1,11 +1,4 @@
 // src/pages/main-chat-interface/index.jsx
-// 
-// CLEAN STATE: All advertising components and utilities have been removed to eliminate UI clutter and CPU usage.
-// The codebase remains ready for future ad re-implementation if needed.
-// 
-// Removed: AdsterraBanner, SocialBar, ad debugging utilities, and ad blocker effects.
-// Maintained: Mobile utilities for responsive design, core chat functionality.
-//
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import Icon from 'components/AppIcon';
@@ -24,20 +17,19 @@ import TypingIndicator from './components/TypingIndicator';
 import { TopVibesSection, TopVibersSection } from 'components/ui/TopVibesSection';
 import ProfanityFilterToggle from 'components/ui/ProfanityFilterToggle';
 
-// Firebase configuration - moved outside component to prevent recreation
-const firebaseConfig = {
-  apiKey: "AIzaSyAX1yMBRCUxfsArQWG5XzN4mx-sk4hgqu0",
-  authDomain: "vibrant-bubble-chat.firebaseapp.com",
-  databaseURL: "https://vibrant-bubble-chat-default-rtdb.firebaseio.com",
-  projectId: "vibrant-bubble-chat",
-  storageBucket: "vibrant-bubble-chat.appspot.com",
-  messagingSenderId: "1084858947817",
-  appId: "1:1084858947817:web:bc63c68c7192a742713878"
-};
-
 const MainChatInterface = () => {
   const { channelId: urlChannelId } = useParams();
   const navigate = useNavigate();
+  
+  const firebaseConfig = {
+    apiKey: "AIzaSyAX1yMBRCUxfsArQWG5XzN4mx-sk4hgqu0",
+    authDomain: "vibrant-bubble-chat.firebaseapp.com",
+    databaseURL: "https://vibrant-bubble-chat-default-rtdb.firebaseio.com",
+    projectId: "vibrant-bubble-chat",
+    storageBucket: "vibrant-bubble-chat.appspot.com",
+    messagingSenderId: "1084858947817",
+    appId: "1:1084858947817:web:bc63c68c7192a742713878"
+  };
   const [messages, setMessages] = useState([]);
   const [messageQueue, setMessageQueue] = useState([]);
   const permanentlyProcessedIds = useRef(new Set());
@@ -80,17 +72,10 @@ const MainChatInterface = () => {
     'study-break': { id: 'study-break', name: 'Study Break' }
   };
 
-  // Handle URL channel parameter with proper initialization
+  // Handle URL channel parameter
   useEffect(() => {
     if (urlChannelId && channelMap[urlChannelId]) {
-      const newChannel = channelMap[urlChannelId];
-      console.log(`Setting channel from URL: ${urlChannelId} ->`, newChannel);
-      setActiveChannel(newChannel);
-      setShowWelcome(false); // Hide welcome when navigating to specific channel
-    } else if (urlChannelId) {
-      console.warn(`Unknown channel ID in URL: ${urlChannelId}`);
-      // Fallback to default channel if invalid URL
-      setActiveChannel({ id: 'vibes', name: 'Just Vibes' });
+      setActiveChannel(channelMap[urlChannelId]);
     }
   }, [urlChannelId]);
 
@@ -166,95 +151,90 @@ const MainChatInterface = () => {
     setTimeout(() => setShowShareNotification(false), 2000);
   };
 
-  // Simple and reliable lane system - no overlaps guaranteed
-  const lanes = 10; // Number of horizontal lanes
-  const laneHeight = 40; // Fixed vertical spacing between lanes
-  const topMargin = 120; // Start position from top
-
-  // Track when each lane was last used to prevent overlaps
-  const laneOccupancy = useRef(new Array(lanes).fill(0));
-
-  const findAvailablePosition = useCallback((messageId, messageText = '', preferredLane = null) => {
-    const now = Date.now();
-    const minTimeBetweenMessages = 1200; // Minimum time between messages in same lane
+  // Collision detection and positioning logic
+  const findAvailablePosition = useCallback((messageId, preferredLane = null) => {
+    const lanes = 6;
+    const laneHeight = 70 / lanes;
+    const messageHeight = 8; // Approximate height percentage of a message bubble
+    const minSpacing = 12; // Minimum vertical spacing between messages
     
-    // Find the lane that's been free the longest
-    let bestLane = 0;
-    let oldestTime = laneOccupancy.current[0];
+    // Get current active positions
+    const activePositions = Array.from(messagePositions.current.values());
     
-    for (let i = 1; i < lanes; i++) {
-      if (laneOccupancy.current[i] < oldestTime) {
-        oldestTime = laneOccupancy.current[i];
-        bestLane = i;
-      }
-    }
+    // Try preferred lane first, then others
+    const lanesToTry = preferredLane !== null 
+      ? [preferredLane, ...Array.from({length: lanes}, (_, i) => i).filter(i => i !== preferredLane)]
+      : Array.from({length: lanes}, (_, i) => i);
     
-    // If the best lane was used too recently, find any available lane
-    if (now - laneOccupancy.current[bestLane] < minTimeBetweenMessages) {
-      for (let i = 0; i < lanes; i++) {
-        if (now - laneOccupancy.current[i] >= minTimeBetweenMessages) {
-          bestLane = i;
-          break;
+    for (const lane of lanesToTry) {
+      const baseTop = 20 + (lane * laneHeight);
+      
+      // Try different vertical positions within the lane
+      const positions = [
+        baseTop, // Center of lane
+        baseTop - 3, // Slightly above center
+        baseTop + 3, // Slightly below center
+        baseTop - 6, // Further above
+        baseTop + 6, // Further below
+      ];
+      
+      for (const top of positions) {
+        // Ensure position is within bounds
+        if (top < 15 || top > 80) continue;
+        
+        // Check for collisions with existing messages
+        const hasCollision = activePositions.some(pos => {
+          const verticalDistance = Math.abs(pos.top - top);
+          const horizontalOverlap = pos.left > 80; // Messages still in visible area
+          return horizontalOverlap && verticalDistance < minSpacing;
+        });
+        
+        if (!hasCollision) {
+          const position = {
+            lane,
+            verticalOffset: top - baseTop,
+            horizontalStart: 100 + Math.random() * 5, // Small random start variation
+            top,
+            left: 100 + Math.random() * 5
+          };
+          
+          // Store position for collision tracking
+          messagePositions.current.set(messageId, position);
+          
+          return position;
         }
       }
     }
     
-    // Mark this lane as occupied
-    laneOccupancy.current[bestLane] = now;
-    
-    const laneTop = topMargin + (bestLane * laneHeight);
+    // If no collision-free position found, use a delayed position
+    const fallbackLane = Math.floor(Math.random() * lanes);
+    const baseTop = 20 + (fallbackLane * laneHeight);
     const position = {
-      lane: bestLane,
-      top: laneTop,
-      left: 105,
-      horizontalStart: 105,
-      animationSpeed: 2,
-      createdAt: now
+      lane: fallbackLane,
+      verticalOffset: 0,
+      horizontalStart: 120 + Math.random() * 10, // Start further right to create delay
+      top: baseTop,
+      left: 120 + Math.random() * 10
     };
     
     messagePositions.current.set(messageId, position);
     return position;
   }, []);
 
-  // Enhanced position cleanup with reservation management
+  // Clean up message positions when messages are removed
   const removeMessagePosition = useCallback((messageId) => {
+    messagePositions.current.delete(messageId);
+  }, []);
+
+  // Update message positions as they move
+  const updateMessagePosition = useCallback((messageId, newLeft) => {
     const position = messagePositions.current.get(messageId);
     if (position) {
-      // Clear the position reservation
-      messagePositions.current.delete(messageId);
-      
-      // Optional: Log position cleanup for debugging
-      console.log(`Position freed for message ${messageId.substring(0, 8)}: lane ${position.lane}`);
+      messagePositions.current.set(messageId, { ...position, left: newLeft });
     }
   }, []);
 
-  // Periodic cleanup of stale position reservations
-  useEffect(() => {
-    const cleanupInterval = setInterval(() => {
-      const now = Date.now();
-      const staleThreshold = 60000; // 1 minute
-      
-      // Remove position reservations for messages that are too old
-      Array.from(messagePositions.current.entries()).forEach(([messageId, position]) => {
-        if (position.createdAt && (now - position.createdAt) > staleThreshold) {
-          messagePositions.current.delete(messageId);
-        }
-      });
-    }, 30000); // Clean up every 30 seconds
-    
-    return () => clearInterval(cleanupInterval);
-  }, []);
-
-  // Simplified position update to prevent performance issues
-  const updateMessagePosition = useCallback((messageId, newLeft) => {
-    const position = messagePositions.current.get(messageId);
-    if (!position) return;
-    
-    // Simple position update without complex collision checking
-    messagePositions.current.set(messageId, { ...position, left: newLeft });
-  }, []);
-
-  // Highway traffic management - adaptive queue processing with speed control
+  // Process messages from queue with dynamic spacing
   useEffect(() => {
     if (messageQueue.length === 0) return;
 
@@ -267,21 +247,34 @@ const MainChatInterface = () => {
           const exists = msgs.some(m => m.id === next.id);
           if (!exists && next && next.id && typeof next === 'object') {
             
-            const messageText = next.text || '';
-            const position = findAvailablePosition(next.id, messageText);
+            // Dynamic speed adjustment based on congestion
+            const congestionLevel = Math.min(msgs.length / 10, 1); // 0-1 based on active messages
+            const baseMinDuration = 15;
+            const baseMaxDuration = 45;
             
-            // Simple message object
+            // Speed up when congested, slow down when sparse
+            const minDuration = baseMinDuration * (1 - congestionLevel * 0.3); // Up to 30% faster
+            const maxDuration = baseMaxDuration * (1 + congestionLevel * 0.2); // Up to 20% slower
+            
+            const duration = maxDuration - ((activityLevel - 1) / 4) * (maxDuration - minDuration);
+            
+            // Find optimal position with collision detection
+            const position = findAvailablePosition(next.id, next.preferredLane);
+            
+            // Ensure message has required properties with defaults
             const validatedMessage = {
               id: next.id,
-              text: messageText,
+              text: next.text || 'No content',
               author: next.author || 'Anonymous',
               timestamp: next.timestamp || new Date().toISOString(),
               reactions: next.reactions || { thumbsUp: 0, thumbsDown: 0 },
               isUserMessage: next.isUserMessage || false,
               userId: next.userId || null,
-              animationDuration: '25s', // Fixed duration for simplicity
-              channelId: activeChannel?.id,
-              position: position
+              animationDuration: `${duration}s`,
+              channelId: activeChannel?.id, // Track which channel this message belongs to
+              position: position, // Use collision-detected position
+              onPositionUpdate: updateMessagePosition, // Callback to update position
+              onRemove: removeMessagePosition // Callback to clean up position
             };
             
             msgs = [...msgs, validatedMessage];
@@ -294,10 +287,14 @@ const MainChatInterface = () => {
       });
     };
 
-    // Simple processing - one message every 500ms to prevent overlaps
-    const interval = setInterval(processQueue, 500);
+    // Dynamic queue processing speed based on congestion
+    const queueLength = messageQueue.length;
+    const baseInterval = 100;
+    const processInterval = Math.max(25, baseInterval - queueLength * 10); // Faster processing when backed up
+    
+    const interval = setInterval(processQueue, processInterval);
     return () => clearInterval(interval);
-  }, [messageQueue.length, activeChannel?.id, findAvailablePosition]);
+  }, [messageQueue.length, activityLevel, activeChannel?.id, findAvailablePosition, updateMessagePosition, removeMessagePosition]);
 
   // Update activity level calculation based on channel message flow
   useEffect(() => {
@@ -370,7 +367,7 @@ const MainChatInterface = () => {
     const app = initializeApp(firebaseConfig);
     setFirebaseApp(app);
     setDatabase(getDatabase(app));
-  }, []); // Empty dependency array - only initialize once
+  }, [firebaseConfig]); // firebaseConfig should be stable
 
   // Track user presence for accurate active user count and channel activity detection
   useEffect(() => {
@@ -835,59 +832,45 @@ const MainChatInterface = () => {
   }, [navigate]);
 
   const handleSendMessage = useCallback((messageData) => {
-    if (!activeChannel || !activeChannel.id || !database) {
-      console.error("SendMessage: No active channel or DB not initialized");
-      return;
-    }
+  if (!activeChannel || !activeChannel.id || !database) {
+    console.error("SendMessage: No active channel or DB not init.");
+    return;
+  }
 
-    // Validate message data
-    if (!messageData || !messageData.text || !messageData.author) {
-      console.error("SendMessage: Invalid message data", messageData);
-      return;
-    }
+  // Prevent duplicate messages (same user, same text within 5 seconds)
+  const now = Date.now();
+  const userId = getUserId();
+  const messageKey = `${userId}_${messageData.text}_${activeChannel.id}`;
+  const lastSentKey = `lastSent_${messageKey}`;
+  const lastSentTime = localStorage.getItem(lastSentKey);
+  
+  if (lastSentTime && (now - parseInt(lastSentTime)) < 5000) {
+    console.warn("Duplicate message prevented - too soon after last identical message");
+    return;
+  }
+  
+  // Store this message timestamp to prevent duplicates
+  localStorage.setItem(lastSentKey, now.toString());
 
-    // Prevent duplicate messages (same user, same text within 5 seconds)
-    const now = Date.now();
-    const userId = getUserId();
-    const messageKey = `${userId}_${messageData.text}_${activeChannel.id}`;
-    const lastSentKey = `lastSent_${messageKey}`;
-    const lastSentTime = localStorage.getItem(lastSentKey);
-    
-    if (lastSentTime && (now - parseInt(lastSentTime)) < 5000) {
-      console.warn("Duplicate message prevented - too soon after last identical message");
-      return;
-    }
-    
-    // Store this message timestamp to prevent duplicates
-    localStorage.setItem(lastSentKey, now.toString());
+  // Generate server-based position for consistent placement across all users
+  const messagePosition = {
+    lane: Math.floor(Math.random() * 6), // 0-5 lanes
+    verticalOffset: Math.random() * 8 - 4, // -4 to +4 offset
+    horizontalStart: 100 + Math.random() * 10 // 100-110% start position
+  };
 
-    // Generate server-based position for consistent placement across all users
-    const messagePosition = {
-      lane: Math.floor(Math.random() * 6), // 0-5 lanes
-      verticalOffset: Math.random() * 8 - 4, // -4 to +4 offset
-      horizontalStart: 100 + Math.random() * 10 // 100-110% start position
-    };
+  const newMessagePayload = {
+    ...messageData,
+    reactions: { thumbsUp: 0, thumbsDown: 0 },
+    isUserMessage: true,
+    timestamp: new Date().toISOString(),
+    position: messagePosition, // Server-determined position
+    createdAt: Date.now(), // For precise timing synchronization
+    userId: userId // Track who sent it
+  };
 
-    const newMessagePayload = {
-      text: messageData.text.trim(),
-      author: messageData.author.trim(),
-      reactions: { thumbsUp: 0, thumbsDown: 0 },
-      isUserMessage: true,
-      timestamp: new Date().toISOString(),
-      position: messagePosition, // Server-determined position
-      createdAt: Date.now(), // For precise timing synchronization
-      userId: userId // Track who sent it
-    };
-
-    const messagesRef = ref(database, `channels/${activeChannel.id.replace(/[.#$[\]]/g, '_')}/messages`);
-    
-    try {
-      firebasePush(messagesRef, newMessagePayload);
-      console.log('Message sent successfully:', newMessagePayload.text.substring(0, 20) + '...');
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      // Could add user notification here
-    }
+  const messagesRef = ref(database, `channels/${activeChannel.id.replace(/[.#$[\]]/g, '_')}/messages`);
+  firebasePush(messagesRef, newMessagePayload);
   }, [activeChannel, database]);
 
   const [reactionStats, setReactionStats] = useState({
@@ -957,7 +940,7 @@ const MainChatInterface = () => {
     permanentlyProcessedIds.current.add(id);
   }, [activeChannel]);
 
-  // Highway system server-synchronized positioning with 12-lane support
+  // Calculate server-synchronized message position for regular channels
   const getServerSyncedMessagePosition = (messageTimestamp, channelId) => {
     // Create deterministic position based on message timestamp and channel
     const messageTime = new Date(messageTimestamp).getTime();
@@ -973,58 +956,27 @@ const MainChatInterface = () => {
     const messageAge = now - messageTime;
     const progress = Math.min(Math.max(0, messageAge / REGULAR_MESSAGE_FLOW_DURATION), 1);
     
-    // Updated highway system (12 lanes)
-    const lanes = 12;
+    // Calculate position
+    const lanes = 6;
     const lane = Math.floor(pseudoRandom * lanes);
-    const usableHeight = 75;
-    const topMargin = 12.5;
-    const laneHeight = usableHeight / lanes; // ~6.25% per lane
-    const laneCenter = topMargin + (lane * laneHeight) + (laneHeight / 2);
+    const laneHeight = 70 / lanes;
+    const baseTop = 20 + (lane * laneHeight);
+    const verticalOffset = (pseudoRandom - 0.5) * 8;
     
-    // Estimate message dimensions for consistent server sync
-    const estimatedWidth = 20 + (pseudoRandom * 15); // 20-35% width
-    const estimatedHeight = 4 + (pseudoRandom * 3); // 4-7% height
-    
-    // Reduced vertical offset for highway discipline
-    const verticalOffset = (pseudoRandom - 0.5) * 4; // ±2% for lane discipline
-    
-    // Horizontal movement with improved easing and dynamic speed
-    const trafficDensity = Math.floor(pseudoRandom * 15); // Simulate traffic
-    const speedMultiplier = 1 + (trafficDensity / 10); // Dynamic speed based on traffic
-    const baseSpeed = 2.5 * speedMultiplier;
-    
+    // Horizontal movement with easing
     const startX = 110;
-    const endX = -15;
-    const easeOut = (t) => 1 - Math.pow(1 - t, 2.5); // Adjusted easing for highway feel
+    const endX = -20;
+    const easeOut = (t) => 1 - Math.pow(1 - t, 3); // Smooth ease out
     const currentX = startX - (easeOut(progress) * (startX - endX));
     
-    // Calculate final position with highway bounds
-    const finalTop = Math.max(10, Math.min(85, laneCenter + verticalOffset));
-    
     return {
-      top: finalTop,
+      top: Math.max(25, Math.min(85, baseTop + verticalOffset)),
       left: currentX,
       lane,
       progress,
       isExpired: progress >= 1,
-      messageAge,
-      calculatedAt: now,
-      // Highway-specific attributes
-      messageWidth: estimatedWidth,
-      messageHeight: estimatedHeight,
-      animationSpeed: baseSpeed,
-      laneCenter: laneCenter,
-      // Spacing reservation consistent with highway system
-      reservedSpace: {
-        topBound: finalTop - estimatedHeight / 2,
-        bottomBound: finalTop + estimatedHeight / 2,
-        leftBound: currentX - estimatedWidth / 2,
-        rightBound: currentX + estimatedWidth / 2,
-        width: estimatedWidth,
-        height: estimatedHeight
-      },
-      createdAt: messageTime,
-      congestionLevel: trafficDensity
+      messageAge, // Include for debugging
+      calculatedAt: now // Timestamp when position was calculated
     };
   };
 
@@ -1090,6 +1042,36 @@ const MainChatInterface = () => {
     };
   }, [activeChannel?.id]); // Remove messages dependency to prevent interference
 
+  // Ad blocker effect to prevent malicious ads
+  useEffect(() => {
+    const blockMaliciousAds = () => {
+      // Remove any unauthorized popups or overlays
+      const unauthorizedElements = document.querySelectorAll(`
+        body > div:not(#root):not([id*="container-58d94318819023c51d2375249b2d6604"]):not(.social-bar-container),
+        div[style*="position: fixed"]:not([id*="container-58d94318819023c51d2375249b2d6604"]):not(.social-bar-container),
+        div[style*="position: absolute"]:not([id*="container-58d94318819023c51d2375249b2d6604"]):not(.social-bar-container),
+        div[id*="ad"]:not([id*="container-58d94318819023c51d2375249b2d6604"]),
+        div[class*="popup"]:not(.glass-panel),
+        div[class*="overlay"]:not(.glass-panel):not(.glass-button):not(.glass-surface),
+        iframe:not([src*="profitableratecpm.com"])
+      `);
+      
+      unauthorizedElements.forEach(el => {
+        if (el && el.parentNode && 
+            !el.id.includes('container-58d94318819023c51d2375249b2d6604') &&
+            !el.classList.contains('social-bar-container')) {
+          el.remove();
+        }
+      });
+    };
+
+    // Run immediately and then every 2 seconds
+    blockMaliciousAds();
+    const interval = setInterval(blockMaliciousAds, 2000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
       {/* Animated Background */}
@@ -1109,7 +1091,6 @@ const MainChatInterface = () => {
               onChannelChange={handleChannelChange}
               activeChannel={activeChannel}
               channelUserCounts={channelUserCounts}
-              initialCollapsed={!!urlChannelId} // Collapse if channel was selected from URL
               className={activeChannel ? 'w-10 h-10' : ''}
             />
             {activeChannel && (
