@@ -93,9 +93,9 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
     }
   };
 
-  const insertMention = () => {
+  const insertMention = (username) => {
     const currentMessage = message;
-    const newMessage = currentMessage + '@';
+    const newMessage = currentMessage + `@${username} `;
     
     // Check length limit
     if (newMessage.length <= 160) {
@@ -251,7 +251,7 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
         </button>
         
         <button
-          onClick={() => insertMention()}
+          onClick={() => insertMention('')}
           className="glass-button px-3 py-1 text-xs text-text-secondary hover:text-text-primary transition-colors flex items-center gap-2"
           title="Add @mention - type @ followed by a username to mention someone"
         >

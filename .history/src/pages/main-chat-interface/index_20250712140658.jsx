@@ -9,7 +9,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import Icon from 'components/AppIcon';
-import { ref, onChildAdded, onChildChanged, off, push as firebasePush, runTransaction, onValue, serverTimestamp, onDisconnect, query, orderByChild, startAt, get, set, update } from 'firebase/database';
+import { initializeApp } from 'firebase/app';
+import { getDatabase, ref, onChildAdded, onChildChanged, off, push as firebasePush, runTransaction, onValue, serverTimestamp, onDisconnect, query, orderByChild, startAt, get, set, update } from 'firebase/database';
 import ChannelSelector from 'components/ui/ChannelSelector';
 import StatisticsPanel from 'components/ui/StatisticsPanel';
 import MessageInputPanel from 'components/ui/MessageInputPanel';
@@ -20,7 +21,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import AuthModal from '../../components/auth/AuthModal';
 import UserProfile from '../../components/auth/UserProfile';
 import ReportModal from '../../components/auth/ReportModal';
-import { database } from '../../utils/firebase';
 
 import AnimatedBackground from './components/AnimatedBackground';
 import FadeLogo from './components/FadeLogo';
@@ -28,6 +28,17 @@ import MessageBubble from './components/MessageBubble';
 import TypingIndicator from './components/TypingIndicator';
 import { TopVibesSection, TopVibersSection } from 'components/ui/TopVibesSection';
 import ProfanityFilterToggle from 'components/ui/ProfanityFilterToggle';
+
+// Firebase configuration - moved outside component to prevent recreation
+const firebaseConfig = {
+  apiKey: "AIzaSyAX1yMBRCUxfsArQWG5XzN4mx-sk4hgqu0",
+  authDomain: "vibrant-bubble-chat.firebaseapp.com",
+  databaseURL: "https://vibrant-bubble-chat-default-rtdb.firebaseio.com",
+  projectId: "vibrant-bubble-chat",
+  storageBucket: "vibrant-bubble-chat.appspot.com",
+  messagingSenderId: "1084858947817",
+  appId: "1:1084858947817:web:bc63c68c7192a742713878"
+};
 
 const MainChatInterface = () => {
   const { channelId: urlChannelId } = useParams();
@@ -61,17 +72,13 @@ const MainChatInterface = () => {
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportUsername, setReportUsername] = useState('');
   const [typingUsers, setTypingUsers] = useState([]);
-  const [authUIMinimized, setAuthUIMinimized] = useState(true); // Start minimized
-  const [guestModeConfirmed, setGuestModeConfirmed] = useState(() => {
-    return localStorage.getItem('fade-guest-mode-confirmed') === 'true';
-  });
   
   const REGULAR_MESSAGE_FLOW_DURATION = 25000; // 25 seconds for regular messages
   const activityTimeWindow = 30 * 1000; // 30 seconds
   const currentUserId = useRef(getUserId());
   const presenceRef = useRef(null);
   const currentChannelRef = useRef(null); // Track current channel for cleanup
-  const { isSignedIn, user, updateUserStats, authChecked, signOut } = useAuth();
+  const { isSignedIn, user, updateUserStats } = useAuth();
 
   // Channel mapping for URL routing
   const channelMap = {
@@ -139,38 +146,21 @@ const MainChatInterface = () => {
       window.removeEventListener('orientationchange', handleOrientationChange);
       window.removeEventListener('resize', handleOrientationChange);
     };
-  }, []);  // Event listeners for modals and user interactions
+  }, []);
+
+  // Event listeners for modals and user interactions
   useEffect(() => {
     const handleOpenReportModal = (event) => {
       setReportUsername(event.detail.username);
       setShowReportModal(true);
     };
 
-    const handleSignOut = async () => {
-      try {
-        if (isSignedIn && signOut) {
-          await signOut();
-        }
-      } catch (error) {
-        console.error('Error signing out:', error);
-      }
-    };
-
-    const handleEditProfile = () => {
-      // For now, just show a simple alert. In the future, this could open an edit modal
-      alert('Profile editing feature coming soon!');
-    };
-
     window.addEventListener('openReportModal', handleOpenReportModal);
-    window.addEventListener('signOut', handleSignOut);
-    window.addEventListener('editProfile', handleEditProfile);
-
+    
     return () => {
       window.removeEventListener('openReportModal', handleOpenReportModal);
-      window.removeEventListener('signOut', handleSignOut);
-      window.removeEventListener('editProfile', handleEditProfile);
     };
-  }, [isSignedIn]);
+  }, []);
 
   // User interaction handlers
   const handleUserClick = async (username) => {
@@ -428,6 +418,17 @@ const MainChatInterface = () => {
 
     return () => clearInterval(interval);
   }, [removeMessagePosition]);
+
+  // Initialize Firebase (only once)
+  // Initialize Firebase app
+  const [firebaseApp, setFirebaseApp] = useState(null);
+  const [database, setDatabase] = useState(null);
+
+  useEffect(() => {
+    const app = initializeApp(firebaseConfig);
+    setFirebaseApp(app);
+    setDatabase(getDatabase(app));
+  }, []); // Empty dependency array - only initialize once
 
   // Track user presence for accurate active user count and channel activity detection
   useEffect(() => {
@@ -954,13 +955,8 @@ const MainChatInterface = () => {
       console.log('Message sent successfully:', newMessagePayload.text.substring(0, 20) + '...');
       
       // Update user stats for signed-in users
-      if (isSignedIn && updateUserStats && user) {
-        try {
-          await updateUserStats(1, 0, 0); // +1 message
-        } catch (statsError) {
-          console.error('Failed to update user stats:', statsError);
-          // Don't let stats error prevent message sending
-        }
+      if (isSignedIn && updateUserStats) {
+        await updateUserStats(1, 0, 0); // +1 message
       }
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -1168,22 +1164,6 @@ const MainChatInterface = () => {
     };
   }, [activeChannel?.id]); // Remove messages dependency to prevent interference
 
-  // Show loading screen while checking authentication
-  if (!authChecked) {
-    return (
-      <div className="min-h-screen bg-background relative overflow-hidden flex items-center justify-center">
-        <AnimatedBackground />
-        <div className="glass-panel p-8 text-center">
-          <div className="w-12 h-12 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center mx-auto mb-4">
-            <Icon name="MessageCircle" className="w-6 h-6 text-white" />
-          </div>
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-text-secondary">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
       {/* Animated Background */}
@@ -1368,7 +1348,7 @@ const MainChatInterface = () => {
         </div>
       )      }
 
-      {/* Authentication UI - Integrated and Minimized */}
+      {/* Authentication UI - Integrated into the interface */}
       <div className="fixed top-4 right-4 z-50">
         {isSignedIn ? (
           <div className="flex items-center space-x-2">
@@ -1405,7 +1385,7 @@ const MainChatInterface = () => {
                 className="glass-button p-2 hover:bg-glass-surface/60 transition-all duration-300 group"
                 title="Leaderboards"
               >
-                <Icon name="BarChart3" className="w-4 h-4 text-text-secondary group-hover:text-primary transition-colors" />
+                <Icon name="trophy" className="w-4 h-4 text-text-secondary group-hover:text-primary transition-colors" />
               </button>
               <button
                 onClick={() => {
@@ -1415,125 +1395,63 @@ const MainChatInterface = () => {
                 className="glass-button p-2 hover:bg-glass-surface/60 transition-all duration-300 group"
                 title="Profile"
               >
-                <Icon name="User" className="w-4 h-4 text-text-secondary group-hover:text-primary transition-colors" />
+                <Icon name="user" className="w-4 h-4 text-text-secondary group-hover:text-primary transition-colors" />
               </button>
             </div>
           </div>
         ) : (
           <div className="space-y-2">
-            {/* Minimized Auth UI */}
-            {(authUIMinimized && !guestModeConfirmed) ? (
-              <div className="glass-panel p-2">
-                <div className="flex items-center space-x-2">
-                  <div className="w-6 h-6 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center">
-                    <Icon name="User" className="w-3 h-3 text-white" />
-                  </div>
-                  <span className="text-text-secondary text-xs">Guest</span>
-                  <button
-                    onClick={() => setAuthUIMinimized(false)}
-                    className="text-primary hover:text-primary/80 text-xs font-medium transition-colors"
-                  >
-                    Sign Up?
-                  </button>
-                  <button
-                    onClick={() => {
-                      setGuestModeConfirmed(true);
-                      localStorage.setItem('fade-guest-mode-confirmed', 'true');
-                    }}
-                    className="text-text-secondary hover:text-text-primary text-xs transition-colors"
-                    title="Continue as guest and minimize this"
-                  >
-                    <Icon name="X" className="w-3 h-3" />
-                  </button>
-                </div>
-              </div>
-            ) : guestModeConfirmed ? (
-              // Just the essential buttons when guest mode is confirmed
-              <div className="flex items-center space-x-1">
-                <button
-                  onClick={() => navigate('/leaderboards')}
-                  className="glass-button p-2 hover:bg-glass-surface/40 transition-all duration-300 group"
-                  title="Leaderboards"
-                >
-                  <Icon name="BarChart3" className="w-3 h-3 text-text-secondary group-hover:text-primary transition-colors" />
-                </button>
+            {/* Guest user indication */}
+            <div className="glass-panel p-3 text-center">
+              <div className="text-text-secondary text-xs mb-2">Chatting as Guest</div>
+              <div className="text-text-primary text-sm font-medium mb-3">Create an account to unlock features!</div>
+              
+              <div className="space-y-2">
                 <button
                   onClick={() => {
                     setAuthMode('signup');
                     setShowAuthModal(true);
                   }}
-                  className="glass-button p-2 hover:bg-glass-surface/40 transition-all duration-300 group"
-                  title="Sign up"
+                  className="w-full glass-button py-2 px-4 bg-primary/20 hover:bg-primary/30 text-primary font-medium transition-all duration-300 text-sm"
                 >
-                  <Icon name="UserPlus" className="w-3 h-3 text-text-secondary group-hover:text-primary transition-colors" />
+                  <Icon name="user-plus" className="w-4 h-4 inline mr-2" />
+                  Sign Up
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setAuthMode('signin');
+                    setShowAuthModal(true);
+                  }}
+                  className="w-full glass-button py-2 px-4 hover:bg-glass-surface/60 text-text-primary font-medium transition-all duration-300 text-sm"
+                >
+                  <Icon name="log-in" className="w-4 h-4 inline mr-2" />
+                  Sign In
+                </button>
+                
+                <button
+                  onClick={() => navigate('/leaderboards')}
+                  className="w-full glass-button py-1 px-3 hover:bg-glass-surface/40 text-text-secondary text-xs transition-all duration-300"
+                  title="Leaderboards"
+                >
+                  <Icon name="trophy" className="w-3 h-3 inline mr-1" />
+                  Leaderboards
                 </button>
               </div>
-            ) : (
-              // Expanded Auth UI
-              <div className="space-y-2">
-                <div className="glass-panel p-3 max-w-xs">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-text-secondary text-xs">Chatting as Guest</div>
-                    <button
-                      onClick={() => setAuthUIMinimized(true)}
-                      className="text-text-secondary hover:text-text-primary transition-colors"
-                    >
-                      <Icon name="Minimize2" className="w-3 h-3" />
-                    </button>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-2 gap-1">
-                      <button
-                        onClick={() => {
-                          setAuthMode('signup');
-                          setShowAuthModal(true);
-                        }}
-                        className="glass-button py-1.5 px-2 bg-primary/20 hover:bg-primary/30 text-primary font-medium transition-all duration-300 text-xs"
-                      >
-                        Sign Up
-                      </button>
-                      
-                      <button
-                        onClick={() => {
-                          setAuthMode('signin');
-                          setShowAuthModal(true);
-                        }}
-                        className="glass-button py-1.5 px-2 hover:bg-glass-surface/60 text-text-primary font-medium transition-all duration-300 text-xs"
-                      >
-                        Sign In
-                      </button>
-                    </div>
-                    
-                    <button
-                      onClick={() => navigate('/leaderboards')}
-                      className="w-full glass-button py-1 px-2 hover:bg-glass-surface/40 text-text-secondary text-xs transition-all duration-300"
-                    >
-                      <Icon name="BarChart3" className="w-3 h-3 inline mr-1" />
-                      Leaderboards
-                    </button>
-                    
-                    <button
-                      onClick={() => {
-                        setGuestModeConfirmed(true);
-                        setAuthUIMinimized(true);
-                        localStorage.setItem('fade-guest-mode-confirmed', 'true');
-                      }}
-                      className="w-full text-text-secondary hover:text-text-primary text-xs transition-colors"
-                    >
-                      Continue as Guest
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Compact benefits hint */}
-                <div className="glass-panel p-1.5 bg-gradient-to-r from-primary/10 to-secondary/10 max-w-xs">
-                  <div className="text-xs text-text-secondary text-center">
-                    <div className="font-medium text-primary text-xs">✨ Get: XP • Profile • Leaderboard</div>
-                  </div>
+            </div>
+            
+            {/* Benefits hint */}
+            <div className="glass-panel p-2 bg-gradient-to-r from-primary/10 to-secondary/10">
+              <div className="text-xs text-text-secondary text-center">
+                <div className="font-medium text-primary mb-1">✨ Account Benefits:</div>
+                <div className="space-y-0.5">
+                  <div>🏆 Level & XP system</div>
+                  <div>👤 Profile & stats tracking</div>
+                  <div>📊 Leaderboard ranking</div>
+                  <div>🎯 @mention others</div>
                 </div>
               </div>
-            )}
+            </div>
           </div>
         )}
       </div>
@@ -1541,15 +1459,7 @@ const MainChatInterface = () => {
       {/* Modals */}
       <AuthModal
         isOpen={showAuthModal}
-        onClose={() => {
-          setShowAuthModal(false);
-          // If user clicked "Continue as Guest" in modal, minimize the auth UI
-          if (!isSignedIn) {
-            setGuestModeConfirmed(true);
-            setAuthUIMinimized(true);
-            localStorage.setItem('fade-guest-mode-confirmed', 'true');
-          }
-        }}
+        onClose={() => setShowAuthModal(false)}
         mode={authMode}
       />
 

@@ -71,7 +71,7 @@ const MainChatInterface = () => {
   const currentUserId = useRef(getUserId());
   const presenceRef = useRef(null);
   const currentChannelRef = useRef(null); // Track current channel for cleanup
-  const { isSignedIn, user, updateUserStats, authChecked, signOut } = useAuth();
+  const { isSignedIn, user, updateUserStats, authChecked } = useAuth();
 
   // Channel mapping for URL routing
   const channelMap = {
@@ -139,38 +139,21 @@ const MainChatInterface = () => {
       window.removeEventListener('orientationchange', handleOrientationChange);
       window.removeEventListener('resize', handleOrientationChange);
     };
-  }, []);  // Event listeners for modals and user interactions
+  }, []);
+
+  // Event listeners for modals and user interactions
   useEffect(() => {
     const handleOpenReportModal = (event) => {
       setReportUsername(event.detail.username);
       setShowReportModal(true);
     };
 
-    const handleSignOut = async () => {
-      try {
-        if (isSignedIn && signOut) {
-          await signOut();
-        }
-      } catch (error) {
-        console.error('Error signing out:', error);
-      }
-    };
-
-    const handleEditProfile = () => {
-      // For now, just show a simple alert. In the future, this could open an edit modal
-      alert('Profile editing feature coming soon!');
-    };
-
     window.addEventListener('openReportModal', handleOpenReportModal);
-    window.addEventListener('signOut', handleSignOut);
-    window.addEventListener('editProfile', handleEditProfile);
-
+    
     return () => {
       window.removeEventListener('openReportModal', handleOpenReportModal);
-      window.removeEventListener('signOut', handleSignOut);
-      window.removeEventListener('editProfile', handleEditProfile);
     };
-  }, [isSignedIn]);
+  }, []);
 
   // User interaction handlers
   const handleUserClick = async (username) => {
@@ -1168,22 +1151,6 @@ const MainChatInterface = () => {
     };
   }, [activeChannel?.id]); // Remove messages dependency to prevent interference
 
-  // Show loading screen while checking authentication
-  if (!authChecked) {
-    return (
-      <div className="min-h-screen bg-background relative overflow-hidden flex items-center justify-center">
-        <AnimatedBackground />
-        <div className="glass-panel p-8 text-center">
-          <div className="w-12 h-12 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center mx-auto mb-4">
-            <Icon name="MessageCircle" className="w-6 h-6 text-white" />
-          </div>
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-text-secondary">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
       {/* Animated Background */}
@@ -1415,7 +1382,7 @@ const MainChatInterface = () => {
                 className="glass-button p-2 hover:bg-glass-surface/60 transition-all duration-300 group"
                 title="Profile"
               >
-                <Icon name="User" className="w-4 h-4 text-text-secondary group-hover:text-primary transition-colors" />
+                <Icon name="user" className="w-4 h-4 text-text-secondary group-hover:text-primary transition-colors" />
               </button>
             </div>
           </div>
@@ -1426,7 +1393,7 @@ const MainChatInterface = () => {
               <div className="glass-panel p-2">
                 <div className="flex items-center space-x-2">
                   <div className="w-6 h-6 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center">
-                    <Icon name="User" className="w-3 h-3 text-white" />
+                    <Icon name="user" className="w-3 h-3 text-white" />
                   </div>
                   <span className="text-text-secondary text-xs">Guest</span>
                   <button
@@ -1478,7 +1445,7 @@ const MainChatInterface = () => {
                       onClick={() => setAuthUIMinimized(true)}
                       className="text-text-secondary hover:text-text-primary transition-colors"
                     >
-                      <Icon name="Minimize2" className="w-3 h-3" />
+                      <Icon name="minimize-2" className="w-3 h-3" />
                     </button>
                   </div>
                   

@@ -93,9 +93,9 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
     }
   };
 
-  const insertMention = () => {
+  const insertMention = (username) => {
     const currentMessage = message;
-    const newMessage = currentMessage + '@';
+    const newMessage = currentMessage + `@${username} `;
     
     // Check length limit
     if (newMessage.length <= 160) {
@@ -240,23 +240,14 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
         </div>
       )}
 
-      {/* Emoji Toggle Button & Mention Helper */}
-      <div className="mb-2 flex justify-center gap-2">
+      {/* Emoji Toggle Button */}
+      <div className="mb-2 flex justify-center">
         <button
           onClick={() => setShowEmojiBar(!showEmojiBar)}
           className="glass-button px-3 py-1 text-xs text-text-secondary hover:text-text-primary transition-colors flex items-center gap-2"
         >
           <Icon name="Smile" size={14} />
           {showEmojiBar ? 'Hide Emojis' : 'Show Emojis'}
-        </button>
-        
-        <button
-          onClick={() => insertMention()}
-          className="glass-button px-3 py-1 text-xs text-text-secondary hover:text-text-primary transition-colors flex items-center gap-2"
-          title="Add @mention - type @ followed by a username to mention someone"
-        >
-          <Icon name="at-sign" size={14} />
-          @mention
         </button>
       </div>
 

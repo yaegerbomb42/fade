@@ -6,7 +6,6 @@ import MainChatInterface from "pages/main-chat-interface";
 import PrivacyPolicy from "pages/PrivacyPolicy";
 import NotFound from "pages/NotFound";
 import Leaderboards from "pages/Leaderboards";
-import { database } from './utils/firebase';
 
 const Routes = () => {
   return (
@@ -17,7 +16,7 @@ const Routes = () => {
           <Route path="/" element={<MainChatInterface />} />
           <Route path="/channel/:channelId" element={<MainChatInterface />} />
           <Route path="/main-chat-interface" element={<MainChatInterface />} />
-          <Route path="/leaderboards" element={<Leaderboards database={database} />} />
+          <Route path="/leaderboards" element={<Leaderboards />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="*" element={<NotFound />} />
         </RouterRoutes>

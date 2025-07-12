@@ -393,7 +393,7 @@ const MainChatInterface = () => {
         setMessages(prev => prev.map(msg => ({
           ...msg,
           animationDuration: `${duration}s`
-        })));
+        )));
       }
     }, 2000); // Check every 2 seconds for smoother updates
 

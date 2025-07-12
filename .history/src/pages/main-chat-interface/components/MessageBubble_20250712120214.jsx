@@ -47,46 +47,6 @@ const MessageBubble = ({
   const [hasReacted, setHasReacted] = useState({ thumbsUp: false, thumbsDown: false });
   const [flowSpeed, setFlowSpeed] = useState('message-flow');
 
-  // Parse @mentions in message text
-  const parseMessageWithMentions = (text) => {
-    if (!text) return text;
-    
-    // Match @username patterns
-    const mentionRegex = /@(\w+)/g;
-    const parts = [];
-    let lastIndex = 0;
-    let match;
-
-    while ((match = mentionRegex.exec(text)) !== null) {
-      // Add text before mention
-      if (match.index > lastIndex) {
-        parts.push({
-          type: 'text',
-          content: text.slice(lastIndex, match.index)
-        });
-      }
-      
-      // Add mention
-      parts.push({
-        type: 'mention',
-        content: match[0],
-        username: match[1]
-      });
-      
-      lastIndex = match.index + match[0].length;
-    }
-    
-    // Add remaining text
-    if (lastIndex < text.length) {
-      parts.push({
-        type: 'text',
-        content: text.slice(lastIndex)
-      });
-    }
-    
-    return parts.length > 0 ? parts : [{ type: 'text', content: text }];
-  };
-
   // Check if user has already reacted to this message
   useEffect(() => {
     const reactionKey = getUserReactionKey(message.id);
@@ -186,7 +146,7 @@ const MessageBubble = ({
     return () => clearTimeout(removeTimer);
   }, [animationDuration, message.id, message.onRemove, onRemove]);
 
-  const handleThumbsUp = async (e) => {
+  const handleThumbsUp = (e) => {
     e.stopPropagation();
     
     // Use the message ID for reactions
@@ -199,27 +159,17 @@ const MessageBubble = ({
       const newReaction = { thumbsUp: true, thumbsDown: false };
       setHasReacted(newReaction);
       localStorage.setItem(reactionKey, JSON.stringify(newReaction));
-      
-      // Update stats for message author
-      if (message.authorData?.isSignedIn && updateUserStats) {
-        await updateUserStats(0, 1, -1); // +1 like, -1 dislike
-      }
     } else if (!hasReacted.thumbsUp) {
       // If no reaction yet, add like
       onReaction(reactionMessageId, 'thumbsUp', null);
       const newReaction = { thumbsUp: true, thumbsDown: false };
       setHasReacted(newReaction);
       localStorage.setItem(reactionKey, JSON.stringify(newReaction));
-      
-      // Update stats for message author
-      if (message.authorData?.isSignedIn && updateUserStats) {
-        await updateUserStats(0, 1, 0); // +1 like
-      }
     }
     // If already liked, do nothing (can't unlike)
   };
 
-  const handleThumbsDown = async (e) => {
+  const handleThumbsDown = (e) => {
     e.stopPropagation();
     
     // Use the message ID for reactions
@@ -232,22 +182,12 @@ const MessageBubble = ({
       const newReaction = { thumbsUp: false, thumbsDown: true };
       setHasReacted(newReaction);
       localStorage.setItem(reactionKey, JSON.stringify(newReaction));
-      
-      // Update stats for message author
-      if (message.authorData?.isSignedIn && updateUserStats) {
-        await updateUserStats(0, -1, 1); // -1 like, +1 dislike
-      }
     } else if (!hasReacted.thumbsDown) {
       // If no reaction yet, add dislike
       onReaction(reactionMessageId, 'thumbsDown', null);
       const newReaction = { thumbsUp: false, thumbsDown: true };
       setHasReacted(newReaction);
       localStorage.setItem(reactionKey, JSON.stringify(newReaction));
-      
-      // Update stats for message author
-      if (message.authorData?.isSignedIn && updateUserStats) {
-        await updateUserStats(0, 0, 1); // +1 dislike
-      }
     }
     // If already disliked, do nothing (can't un-dislike)
   };
@@ -278,35 +218,17 @@ const MessageBubble = ({
                   {(message.author || 'Anonymous').charAt(0).toUpperCase()}
                 </span>
               </div>
-              <span 
-                className={`text-xs font-medium text-text-primary ${
-                  message.authorData?.isSignedIn ? 'cursor-pointer hover:text-blue-400 transition-colors' : ''
-                }`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (onUserClick && message.authorData?.isSignedIn && message.authorData?.username) {
-                    onUserClick(message.authorData.username);
-                  }
-                }}
-                title={message.authorData?.isSignedIn ? 'View profile' : ''}
-              >
+              <span className="text-xs font-medium text-text-primary">
                 {message.author || 'Anonymous'}
               </span>
-              {message.authorData?.isSignedIn && (
-                <span className="text-xs bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-1 rounded text-xs font-bold">
-                  L{message.authorData.level || 1}
-                </span>
-              )}
             </div>
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-text-secondary/60 font-mono">
-                {message.timestamp ? new Date(message.timestamp).toLocaleTimeString('en-US', {
-                  hour12: true,
-                  hour: 'numeric',
-                  minute: '2-digit',
-                }) : 'Unknown time'}
-              </span>
-            </div>
+            <span className="text-xs text-text-secondary/60 font-mono">
+              {message.timestamp ? new Date(message.timestamp).toLocaleTimeString('en-US', {
+                hour12: true,
+                hour: 'numeric',
+                minute: '2-digit',
+              }) : 'Unknown time'}
+            </span>
           </div>
 
           {/* Message Content - responsive wrapping with better margins */}
@@ -316,11 +238,11 @@ const MessageBubble = ({
             maxWidth: '100%',
             whiteSpace: 'pre-wrap'
           }}>
-            {renderMessageContent()}
+            {message.text || 'No message content'}
           </div>
 
           {/* Reaction bar - easier to click, always visible */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center">
             <div className="flex items-center gap-1">
               <button
                 className={`vibey-reaction-btn like-btn ${hasReacted.thumbsUp ? 'reacted-up' : 'unreacted'}`}
@@ -340,22 +262,6 @@ const MessageBubble = ({
                 <span className="text-xs font-mono ml-1">{message.reactions?.thumbsDown || 0}</span>
               </button>
             </div>
-            
-            {/* Report button - only show for signed-in users and not own messages */}
-            {message.authorData?.isSignedIn && message.authorData.username !== (isSignedIn ? user?.username : null) && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (onReportClick) {
-                    onReportClick(message.authorData.username);
-                  }
-                }}
-                className="text-text-secondary hover:text-red-400 transition-colors p-1"
-                title="Report user"
-              >
-                <span className="text-xs">!</span>
-              </button>
-            )}
           </div>
         </div>
       </div>

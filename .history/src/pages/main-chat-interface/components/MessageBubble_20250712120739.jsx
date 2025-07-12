@@ -279,16 +279,13 @@ const MessageBubble = ({
                 </span>
               </div>
               <span 
-                className={`text-xs font-medium text-text-primary ${
-                  message.authorData?.isSignedIn ? 'cursor-pointer hover:text-blue-400 transition-colors' : ''
-                }`}
+                className="text-xs font-medium text-text-primary cursor-pointer hover:text-blue-400 transition-colors"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (onUserClick && message.authorData?.isSignedIn && message.authorData?.username) {
+                  if (onUserClick && message.authorData?.username) {
                     onUserClick(message.authorData.username);
                   }
                 }}
-                title={message.authorData?.isSignedIn ? 'View profile' : ''}
               >
                 {message.author || 'Anonymous'}
               </span>
@@ -306,6 +303,18 @@ const MessageBubble = ({
                   minute: '2-digit',
                 }) : 'Unknown time'}
               </span>
+              {onReportClick && message.authorData?.username && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReportClick(message.authorData.username);
+                  }}
+                  className="text-red-400 hover:text-red-300 transition-colors p-1"
+                  title="Report user"
+                >
+                  <Icon name="flag" className="w-3 h-3" />
+                </button>
+              )}
             </div>
           </div>
 
@@ -320,7 +329,7 @@ const MessageBubble = ({
           </div>
 
           {/* Reaction bar - easier to click, always visible */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center">
             <div className="flex items-center gap-1">
               <button
                 className={`vibey-reaction-btn like-btn ${hasReacted.thumbsUp ? 'reacted-up' : 'unreacted'}`}
@@ -340,22 +349,6 @@ const MessageBubble = ({
                 <span className="text-xs font-mono ml-1">{message.reactions?.thumbsDown || 0}</span>
               </button>
             </div>
-            
-            {/* Report button - only show for signed-in users and not own messages */}
-            {message.authorData?.isSignedIn && message.authorData.username !== (isSignedIn ? user?.username : null) && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (onReportClick) {
-                    onReportClick(message.authorData.username);
-                  }
-                }}
-                className="text-text-secondary hover:text-red-400 transition-colors p-1"
-                title="Report user"
-              >
-                <span className="text-xs">!</span>
-              </button>
-            )}
           </div>
         </div>
       </div>

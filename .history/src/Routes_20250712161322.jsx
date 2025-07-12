@@ -6,7 +6,7 @@ import MainChatInterface from "pages/main-chat-interface";
 import PrivacyPolicy from "pages/PrivacyPolicy";
 import NotFound from "pages/NotFound";
 import Leaderboards from "pages/Leaderboards";
-import { database } from './utils/firebase';
+import { database } from '../utils/firebase';
 
 const Routes = () => {
   return (

@@ -1168,22 +1168,6 @@ const MainChatInterface = () => {
     };
   }, [activeChannel?.id]); // Remove messages dependency to prevent interference
 
-  // Show loading screen while checking authentication
-  if (!authChecked) {
-    return (
-      <div className="min-h-screen bg-background relative overflow-hidden flex items-center justify-center">
-        <AnimatedBackground />
-        <div className="glass-panel p-8 text-center">
-          <div className="w-12 h-12 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center mx-auto mb-4">
-            <Icon name="MessageCircle" className="w-6 h-6 text-white" />
-          </div>
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-text-secondary">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
       {/* Animated Background */}

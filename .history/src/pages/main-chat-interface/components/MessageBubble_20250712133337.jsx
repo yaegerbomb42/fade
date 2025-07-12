@@ -306,6 +306,18 @@ const MessageBubble = ({
                   minute: '2-digit',
                 }) : 'Unknown time'}
               </span>
+              {onReportClick && message.authorData?.username && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReportClick(message.authorData.username);
+                  }}
+                  className="text-red-400 hover:text-red-300 transition-colors p-1"
+                  title="Report user"
+                >
+                  <Icon name="flag" className="w-3 h-3" />
+                </button>
+              )}
             </div>
           </div>
 

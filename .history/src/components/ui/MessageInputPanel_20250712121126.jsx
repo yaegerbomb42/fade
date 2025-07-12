@@ -251,7 +251,7 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
         </button>
         
         <button
-          onClick={() => insertMention()}
+          onClick={() => insertMention('')}
           className="glass-button px-3 py-1 text-xs text-text-secondary hover:text-text-primary transition-colors flex items-center gap-2"
           title="Add @mention - type @ followed by a username to mention someone"
         >

@@ -71,7 +71,7 @@ const MainChatInterface = () => {
   const currentUserId = useRef(getUserId());
   const presenceRef = useRef(null);
   const currentChannelRef = useRef(null); // Track current channel for cleanup
-  const { isSignedIn, user, updateUserStats, authChecked, signOut } = useAuth();
+  const { isSignedIn, user, updateUserStats, authChecked } = useAuth();
 
   // Channel mapping for URL routing
   const channelMap = {
@@ -148,8 +148,13 @@ const MainChatInterface = () => {
 
     const handleSignOut = async () => {
       try {
-        if (isSignedIn && signOut) {
-          await signOut();
+        if (isSignedIn) {
+          const { signOut } = await import('../../contexts/AuthContext');
+          // Get the signOut function from context
+          const authContext = document.querySelector('[data-auth-context]');
+          if (authContext) {
+            authContext.dispatchEvent(new CustomEvent('requestSignOut'));
+          }
         }
       } catch (error) {
         console.error('Error signing out:', error);
@@ -1167,22 +1172,6 @@ const MainChatInterface = () => {
       clearInterval(flowInterval);
     };
   }, [activeChannel?.id]); // Remove messages dependency to prevent interference
-
-  // Show loading screen while checking authentication
-  if (!authChecked) {
-    return (
-      <div className="min-h-screen bg-background relative overflow-hidden flex items-center justify-center">
-        <AnimatedBackground />
-        <div className="glass-panel p-8 text-center">
-          <div className="w-12 h-12 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center mx-auto mb-4">
-            <Icon name="MessageCircle" className="w-6 h-6 text-white" />
-          </div>
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-text-secondary">Loading...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">

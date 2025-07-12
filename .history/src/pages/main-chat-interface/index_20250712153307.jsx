@@ -9,7 +9,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import Icon from 'components/AppIcon';
-import { ref, onChildAdded, onChildChanged, off, push as firebasePush, runTransaction, onValue, serverTimestamp, onDisconnect, query, orderByChild, startAt, get, set, update } from 'firebase/database';
+import { initializeApp } from 'firebase/app';
+import { getDatabase, ref, onChildAdded, onChildChanged, off, push as firebasePush, runTransaction, onValue, serverTimestamp, onDisconnect, query, orderByChild, startAt, get, set, update } from 'firebase/database';
 import ChannelSelector from 'components/ui/ChannelSelector';
 import StatisticsPanel from 'components/ui/StatisticsPanel';
 import MessageInputPanel from 'components/ui/MessageInputPanel';
@@ -20,7 +21,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import AuthModal from '../../components/auth/AuthModal';
 import UserProfile from '../../components/auth/UserProfile';
 import ReportModal from '../../components/auth/ReportModal';
-import { database } from '../../utils/firebase';
 
 import AnimatedBackground from './components/AnimatedBackground';
 import FadeLogo from './components/FadeLogo';
@@ -28,6 +28,17 @@ import MessageBubble from './components/MessageBubble';
 import TypingIndicator from './components/TypingIndicator';
 import { TopVibesSection, TopVibersSection } from 'components/ui/TopVibesSection';
 import ProfanityFilterToggle from 'components/ui/ProfanityFilterToggle';
+
+// Firebase configuration - moved outside component to prevent recreation
+const firebaseConfig = {
+  apiKey: "AIzaSyAX1yMBRCUxfsArQWG5XzN4mx-sk4hgqu0",
+  authDomain: "vibrant-bubble-chat.firebaseapp.com",
+  databaseURL: "https://vibrant-bubble-chat-default-rtdb.firebaseio.com",
+  projectId: "vibrant-bubble-chat",
+  storageBucket: "vibrant-bubble-chat.appspot.com",
+  messagingSenderId: "1084858947817",
+  appId: "1:1084858947817:web:bc63c68c7192a742713878"
+};
 
 const MainChatInterface = () => {
   const { channelId: urlChannelId } = useParams();
@@ -71,7 +82,7 @@ const MainChatInterface = () => {
   const currentUserId = useRef(getUserId());
   const presenceRef = useRef(null);
   const currentChannelRef = useRef(null); // Track current channel for cleanup
-  const { isSignedIn, user, updateUserStats, authChecked, signOut } = useAuth();
+  const { isSignedIn, user, updateUserStats, authChecked } = useAuth();
 
   // Channel mapping for URL routing
   const channelMap = {
@@ -139,38 +150,21 @@ const MainChatInterface = () => {
       window.removeEventListener('orientationchange', handleOrientationChange);
       window.removeEventListener('resize', handleOrientationChange);
     };
-  }, []);  // Event listeners for modals and user interactions
+  }, []);
+
+  // Event listeners for modals and user interactions
   useEffect(() => {
     const handleOpenReportModal = (event) => {
       setReportUsername(event.detail.username);
       setShowReportModal(true);
     };
 
-    const handleSignOut = async () => {
-      try {
-        if (isSignedIn && signOut) {
-          await signOut();
-        }
-      } catch (error) {
-        console.error('Error signing out:', error);
-      }
-    };
-
-    const handleEditProfile = () => {
-      // For now, just show a simple alert. In the future, this could open an edit modal
-      alert('Profile editing feature coming soon!');
-    };
-
     window.addEventListener('openReportModal', handleOpenReportModal);
-    window.addEventListener('signOut', handleSignOut);
-    window.addEventListener('editProfile', handleEditProfile);
-
+    
     return () => {
       window.removeEventListener('openReportModal', handleOpenReportModal);
-      window.removeEventListener('signOut', handleSignOut);
-      window.removeEventListener('editProfile', handleEditProfile);
     };
-  }, [isSignedIn]);
+  }, []);
 
   // User interaction handlers
   const handleUserClick = async (username) => {
@@ -428,6 +422,17 @@ const MainChatInterface = () => {
 
     return () => clearInterval(interval);
   }, [removeMessagePosition]);
+
+  // Initialize Firebase (only once)
+  // Initialize Firebase app
+  const [firebaseApp, setFirebaseApp] = useState(null);
+  const [database, setDatabase] = useState(null);
+
+  useEffect(() => {
+    const app = initializeApp(firebaseConfig);
+    setFirebaseApp(app);
+    setDatabase(getDatabase(app));
+  }, []); // Empty dependency array - only initialize once
 
   // Track user presence for accurate active user count and channel activity detection
   useEffect(() => {
@@ -1168,22 +1173,6 @@ const MainChatInterface = () => {
     };
   }, [activeChannel?.id]); // Remove messages dependency to prevent interference
 
-  // Show loading screen while checking authentication
-  if (!authChecked) {
-    return (
-      <div className="min-h-screen bg-background relative overflow-hidden flex items-center justify-center">
-        <AnimatedBackground />
-        <div className="glass-panel p-8 text-center">
-          <div className="w-12 h-12 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center mx-auto mb-4">
-            <Icon name="MessageCircle" className="w-6 h-6 text-white" />
-          </div>
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-text-secondary">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
       {/* Animated Background */}
@@ -1415,7 +1404,7 @@ const MainChatInterface = () => {
                 className="glass-button p-2 hover:bg-glass-surface/60 transition-all duration-300 group"
                 title="Profile"
               >
-                <Icon name="User" className="w-4 h-4 text-text-secondary group-hover:text-primary transition-colors" />
+                <Icon name="user" className="w-4 h-4 text-text-secondary group-hover:text-primary transition-colors" />
               </button>
             </div>
           </div>
@@ -1426,7 +1415,7 @@ const MainChatInterface = () => {
               <div className="glass-panel p-2">
                 <div className="flex items-center space-x-2">
                   <div className="w-6 h-6 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center">
-                    <Icon name="User" className="w-3 h-3 text-white" />
+                    <Icon name="user" className="w-3 h-3 text-white" />
                   </div>
                   <span className="text-text-secondary text-xs">Guest</span>
                   <button
@@ -1443,7 +1432,7 @@ const MainChatInterface = () => {
                     className="text-text-secondary hover:text-text-primary text-xs transition-colors"
                     title="Continue as guest and minimize this"
                   >
-                    <Icon name="X" className="w-3 h-3" />
+                    <Icon name="x" className="w-3 h-3" />
                   </button>
                 </div>
               </div>
@@ -1458,10 +1447,7 @@ const MainChatInterface = () => {
                   <Icon name="BarChart3" className="w-3 h-3 text-text-secondary group-hover:text-primary transition-colors" />
                 </button>
                 <button
-                  onClick={() => {
-                    setAuthMode('signup');
-                    setShowAuthModal(true);
-                  }}
+                  onClick={() => setAuthUIMinimized(false)}
                   className="glass-button p-2 hover:bg-glass-surface/40 transition-all duration-300 group"
                   title="Sign up"
                 >
@@ -1478,7 +1464,7 @@ const MainChatInterface = () => {
                       onClick={() => setAuthUIMinimized(true)}
                       className="text-text-secondary hover:text-text-primary transition-colors"
                     >
-                      <Icon name="Minimize2" className="w-3 h-3" />
+                      <Icon name="minimize-2" className="w-3 h-3" />
                     </button>
                   </div>
                   
@@ -1486,8 +1472,10 @@ const MainChatInterface = () => {
                     <div className="grid grid-cols-2 gap-1">
                       <button
                         onClick={() => {
+                          console.log('Sign Up button clicked');
                           setAuthMode('signup');
                           setShowAuthModal(true);
+                          console.log('Modal should be opening for signup...');
                         }}
                         className="glass-button py-1.5 px-2 bg-primary/20 hover:bg-primary/30 text-primary font-medium transition-all duration-300 text-xs"
                       >
@@ -1496,8 +1484,10 @@ const MainChatInterface = () => {
                       
                       <button
                         onClick={() => {
+                          console.log('Sign In button clicked');
                           setAuthMode('signin');
                           setShowAuthModal(true);
+                          console.log('Modal should be opening...');
                         }}
                         className="glass-button py-1.5 px-2 hover:bg-glass-surface/60 text-text-primary font-medium transition-all duration-300 text-xs"
                       >
