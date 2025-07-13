@@ -20,158 +20,156 @@ export const AuthProvider = ({ children, database }) => {
   
   const guestUserId = getUserId();
 
-  // Test database connection on mount
   useEffect(() => {
-    const testConnection = async () => {
-      if (database) {
-        try {
-          // Try a simple read operation to test connection
-          const testRef = ref(database, '.info/connected');
-          const snapshot = await get(testRef);
-          console.log('Database connection test:', snapshot.exists() ? 'Connected' : 'Not connected');
-        } catch (error) {
-          console.error('Database connection test failed:', error);
-        }
-      }
-    };
+    if (!database) {
+      setLoading(false);
+      setAuthChecked(true);
+      return;
+    }
 
-    testConnection();
-  }, [database]);
-
-  useEffect(() => {
-    const checkAuth = () => {
+    const checkExistingAuth = async () => {
       try {
+        setLoading(true);
         const savedAuth = localStorage.getItem('fade-auth');
         if (savedAuth) {
           const authData = JSON.parse(savedAuth);
+          const userRef = ref(database, `users/${authData.username}`);
+          const snapshot = await get(userRef);
           
-          // Check if user exists in local storage first
-          const localUsers = JSON.parse(localStorage.getItem('fade-local-users') || '{}');
-          if (localUsers[authData.username]) {
-            const userData = localUsers[authData.username];
-            setUser({ 
-              ...userData,
-              username: authData.username, 
-              isSignedIn: true
-            });
-            setIsSignedIn(true);
+          if (snapshot.exists()) {
+            const userData = snapshot.val();
+            if (userData.password === authData.password) {
+              setUser({
+                ...userData,
+                username: authData.username,
+                isSignedIn: true
+              });
+              setIsSignedIn(true);
+              
+              // Update last login and set online status
+              await update(ref(database, `users/${authData.username}`), {
+                lastLogin: serverTimestamp(),
+                isOnline: true,
+                lastSeen: serverTimestamp()
+              });
+            } else {
+              // Invalid saved auth, remove it
+              localStorage.removeItem('fade-auth');
+            }
           } else {
-            // Default user data if not found locally
-            setUser({ 
-              username: authData.username, 
-              isSignedIn: true,
-              xp: 0,
-              level: 1,
-              totalMessages: 0,
-              totalLikes: 0
-            });
-            setIsSignedIn(true);
+            // User doesn't exist, remove saved auth
+            localStorage.removeItem('fade-auth');
           }
         }
       } catch (error) {
+        // On error, remove potentially corrupted auth data
         localStorage.removeItem('fade-auth');
       } finally {
-        setAuthChecked(true);
         setLoading(false);
+        setAuthChecked(true);
       }
     };
 
-    checkAuth();
-  }, []);
+    checkExistingAuth();
+  }, [database]);
 
   const signUp = async (username, password) => {
-    if (!database) throw new Error('Database not initialized');
+    if (!database) {
+      console.error('Database not initialized');
+      throw new Error('Database not initialized');
+    }
 
-    // Simple validation
-    if (username.length < 3) throw new Error('Username too short');
-    if (password.length < 6) throw new Error('Password too short');
+    console.log('Starting sign up process for:', username);
 
     try {
-      // Add timeout for the operation
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Account creation timed out')), 10000)
-      );
+      // Validate username
+      if (username.length < 3 || username.length > 20) {
+        throw new Error('Username must be 3-20 characters long');
+      }
 
-      // Check if username already exists first
+      if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+        throw new Error('Username can only contain letters, numbers, underscores, and hyphens');
+      }
+
+      // Validate password
+      if (password.length < 6) {
+        throw new Error('Password must be at least 6 characters long');
+      }
+
+      console.log('Validation passed, checking if username exists...');
+
+      // Check if username exists with timeout
       const userRef = ref(database, `users/${username}`);
-      const existingUser = await Promise.race([
+      
+      // Add timeout to Firebase operations
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Database operation timed out')), 15000);
+      });
+      
+      const snapshot = await Promise.race([
         get(userRef),
         timeoutPromise
       ]);
-
-      if (existingUser.exists()) {
-        throw new Error('Username already taken');
+      
+      if (snapshot.exists()) {
+        throw new Error('Username already exists');
       }
 
-      // Create user account with minimal data
+      console.log('Username available, creating user account...');
+
+      // Create user account with simpler data structure
       const newUser = {
         username,
-        password,
-        createdAt: Date.now(),
+        password, // In production, this should be hashed
+        createdAt: Date.now(), // Use timestamp instead of serverTimestamp for now
+        lastLogin: Date.now(),
+        isOnline: true,
+        lastSeen: Date.now(),
         xp: 0,
         level: 1,
         totalMessages: 0,
         totalLikes: 0,
-        isOnline: true
+        totalDislikes: 0,
+        status: 'online',
+        bio: '',
+        reports: 0,
+        bannedUntil: null,
+        guestUserId: guestUserId // Link to guest sessions
       };
 
-      // Create the user with timeout
+      console.log('Saving user to database...');
+      
+      // Save with timeout
       await Promise.race([
         set(userRef, newUser),
         timeoutPromise
       ]);
 
-      // Save auth locally
+      console.log('User saved, updating localStorage...');
+      // Save auth to localStorage
       localStorage.setItem('fade-auth', JSON.stringify({ username, password }));
 
+      console.log('Setting user state...');
       setUser({ ...newUser, isSignedIn: true });
       setIsSignedIn(true);
 
+      console.log('Sign up completed successfully');
       return newUser;
     } catch (error) {
       console.error('Sign up error:', error);
       
-      // Fallback to local-only account creation if Firebase fails
-      if (error.message.includes('timeout') || error.message.includes('network') || error.message.includes('permission')) {
-        console.log('Firebase failed, creating local account');
-        
-        // Check local storage for existing users
-        const localUsers = JSON.parse(localStorage.getItem('fade-local-users') || '{}');
-        if (localUsers[username]) {
-          throw new Error('Username already taken');
-        }
-        
-        // Create local user
-        const newUser = {
-          username,
-          password,
-          createdAt: Date.now(),
-          xp: 0,
-          level: 1,
-          totalMessages: 0,
-          totalLikes: 0,
-          isOnline: true,
-          localOnly: true
-        };
-        
-        // Save to local storage
-        localUsers[username] = newUser;
-        localStorage.setItem('fade-local-users', JSON.stringify(localUsers));
-        localStorage.setItem('fade-auth', JSON.stringify({ username, password }));
-        
-        setUser({ ...newUser, isSignedIn: true });
-        setIsSignedIn(true);
-        
-        return newUser;
+      // Handle specific Firebase errors
+      if (error.code === 'PERMISSION_DENIED') {
+        throw new Error('Permission denied. Please check Firebase rules.');
+      } else if (error.code === 'NETWORK_ERROR') {
+        throw new Error('Network error. Please check your internet connection.');
+      } else if (error.message.includes('timed out')) {
+        throw new Error('Connection timed out. Please try again.');
+      } else if (error.message) {
+        throw error;
+      } else {
+        throw new Error('An unexpected error occurred during sign up.');
       }
-      
-      if (error.message.includes('timeout')) {
-        throw new Error('Account creation is taking too long. Please check your connection and try again.');
-      }
-      if (error.message.includes('permission')) {
-        throw new Error('Account creation failed. Please try again.');
-      }
-      throw error;
     }
   };
 
@@ -179,36 +177,10 @@ export const AuthProvider = ({ children, database }) => {
     if (!database) throw new Error('Database not initialized');
 
     try {
-      // Add timeout for the operation
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Sign in timed out')), 8000)
-      );
-
       const userRef = ref(database, `users/${username}`);
-      const snapshot = await Promise.race([
-        get(userRef),
-        timeoutPromise
-      ]);
+      const snapshot = await get(userRef);
       
       if (!snapshot.exists()) {
-        // Check local storage as fallback
-        const localUsers = JSON.parse(localStorage.getItem('fade-local-users') || '{}');
-        if (localUsers[username]) {
-          const userData = localUsers[username];
-          if (userData.password !== password) {
-            throw new Error('Invalid password');
-          }
-          
-          // Save auth locally
-          localStorage.setItem('fade-auth', JSON.stringify({ username, password }));
-          
-          const user = { ...userData, username, isSignedIn: true };
-          setUser(user);
-          setIsSignedIn(true);
-          
-          return user;
-        }
-        
         throw new Error('User not found');
       }
 
@@ -218,19 +190,28 @@ export const AuthProvider = ({ children, database }) => {
         throw new Error('Invalid password');
       }
 
-      // Save auth locally
+      // Check if user is banned
+      if (userData.bannedUntil && new Date(userData.bannedUntil) > new Date()) {
+        const banEndTime = new Date(userData.bannedUntil).toLocaleString();
+        throw new Error(`Account is banned until ${banEndTime}`);
+      }
+
+      // Update login info
+      await update(userRef, {
+        lastLogin: serverTimestamp(),
+        isOnline: true,
+        lastSeen: serverTimestamp()
+      });
+
+      // Save auth to localStorage
       localStorage.setItem('fade-auth', JSON.stringify({ username, password }));
 
-      const user = { ...userData, username, isSignedIn: true };
-      setUser(user);
+      const updatedUser = { ...userData, username, isSignedIn: true };
+      setUser(updatedUser);
       setIsSignedIn(true);
 
-      return user;
+      return updatedUser;
     } catch (error) {
-      console.error('Sign in error:', error);
-      if (error.message.includes('timeout')) {
-        throw new Error('Sign in is taking too long. Please check your connection and try again.');
-      }
       throw error;
     }
   };

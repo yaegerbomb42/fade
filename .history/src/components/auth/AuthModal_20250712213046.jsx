@@ -22,7 +22,6 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
       setConfirmPassword('');
       setError('');
       setLoading(false);
-      setLoadingMessage('');
     }
   }, [isOpen, initialMode]);
 
@@ -36,7 +35,6 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
     // Set a maximum loading time to prevent infinite loading
     const loadingTimeout = setTimeout(() => {
       setLoading(false);
-      setLoadingMessage('');
       setError('Operation is taking too long. Please try again.');
     }, 15000);
 
@@ -45,18 +43,8 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
         if (password !== confirmPassword) {
           throw new Error('Passwords do not match');
         }
-        setLoadingMessage('Creating your account...');
-        
-        // Add a small delay to show the loading message
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
         await signUp(username, password);
       } else {
-        setLoadingMessage('Signing you in...');
-        
-        // Add a small delay to show the loading message
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
         await signIn(username, password);
       }
       
@@ -67,17 +55,14 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
       setUsername('');
       setPassword('');
       setConfirmPassword('');
-      setLoadingMessage('');
       
       // Close modal
       onClose();
     } catch (err) {
       clearTimeout(loadingTimeout);
-      setLoadingMessage('');
       setError(err.message || 'An error occurred during authentication');
     } finally {
       setLoading(false);
-      setLoadingMessage('');
     }
   };
 
@@ -86,7 +71,6 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
     setError('');
     setPassword('');
     setConfirmPassword('');
-    setLoadingMessage('');
   };
 
   return (
@@ -170,7 +154,7 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
               {loading ? (
                 <div className="flex items-center justify-center space-x-2">
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>{loadingMessage || (mode === 'signin' ? 'Signing In...' : 'Creating Account...')}</span>
+                  <span>{mode === 'signin' ? 'Signing In...' : 'Creating Account...'}</span>
                 </div>
               ) : (
                 mode === 'signin' ? 'Sign In' : 'Create Account'

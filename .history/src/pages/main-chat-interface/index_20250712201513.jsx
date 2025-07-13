@@ -225,7 +225,7 @@ const MainChatInterface = () => {
         console.log('Share URL:', shareUrl);
       }
     }
-  }, [activeChannel?.id, activeChannel?.name]);
+  };
 
   const [showShareNotification, setShowShareNotification] = useState(false);
   
@@ -290,6 +290,9 @@ const MainChatInterface = () => {
     if (position) {
       // Clear the position reservation
       messagePositions.current.delete(messageId);
+      
+      // Optional: Log position cleanup for debugging
+      console.log(`Position freed for message ${messageId.substring(0, 8)}: lane ${position.lane}`);
     }
   }, []);
 
@@ -297,7 +300,7 @@ const MainChatInterface = () => {
   useEffect(() => {
     const cleanupInterval = setInterval(() => {
       const now = Date.now();
-      const staleThreshold = 120000; // 2 minutes
+      const staleThreshold = 60000; // 1 minute
       
       // Remove position reservations for messages that are too old
       Array.from(messagePositions.current.entries()).forEach(([messageId, position]) => {
@@ -305,7 +308,7 @@ const MainChatInterface = () => {
           messagePositions.current.delete(messageId);
         }
       });
-    }, 60000); // Clean up every 60 seconds instead of 30
+    }, 30000); // Clean up every 30 seconds
     
     return () => clearInterval(cleanupInterval);
   }, []);
@@ -364,11 +367,38 @@ const MainChatInterface = () => {
     return () => clearInterval(interval);
   }, [messageQueue.length, activeChannel?.id, findAvailablePosition]);
 
-  // Update activity level calculation based on channel message flow - SIMPLIFIED
+  // Update activity level calculation based on channel message flow
   useEffect(() => {
-    // Just set a reasonable default activity level instead of calculating constantly
-    setActivityLevel(2); // Default moderate activity
-  }, [activeChannel?.id]);
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const recentTimestamps = messageTimestamps.filter(timestamp => now - timestamp < activityTimeWindow);
+      const messageRate = recentTimestamps.length;
+      
+      // Map message rate to activity level based on channel activity (1-5)
+      let newActivityLevel = 1;
+      if (messageRate > 15) newActivityLevel = 5; // Very active
+      else if (messageRate > 10) newActivityLevel = 4; // Active
+      else if (messageRate > 5) newActivityLevel = 3; // Moderate
+      else if (messageRate > 2) newActivityLevel = 2; // Low activity
+      
+      setActivityLevel(prev => {
+        // Only update if activity level actually changed to prevent unnecessary re-renders
+        if (newActivityLevel !== prev) {
+          const minDuration = 15; // Minimum duration in seconds (high activity)
+          const maxDuration = 45; // Maximum duration in seconds (low activity)
+          const duration = maxDuration - ((newActivityLevel - 1) / 4) * (maxDuration - minDuration);
+          
+          setMessages(msgs => msgs.map(msg => ({
+            ...msg,
+            animationDuration: `${duration}s`
+          })));
+        }
+        return newActivityLevel;
+      });
+    }, 5000); // Check every 5 seconds instead of 2 for better performance
+
+    return () => clearInterval(interval);
+  }, [messageTimestamps, activityTimeWindow]); // Removed activityLevel dependency
 
   // Clean up messages that have completed their flow journey
   useEffect(() => {
@@ -394,39 +424,154 @@ const MainChatInterface = () => {
         
         return newMessages.length !== prev.length ? newMessages : prev; // Only update if something changed
       });
-    }, 10000); // Check every 10 seconds
+    }, 5000); // Check every 5 seconds instead of 2 for better performance
 
     return () => clearInterval(interval);
-  }, []);
+  }, [removeMessagePosition]);
 
-  // Track user presence - SIMPLIFIED FOR PERFORMANCE
+  // Track user presence for accurate active user count and channel activity detection
   useEffect(() => {
-    // Just set default values instead of complex Firebase tracking
-    setActiveUsers(5); // Default active users
-    setChannelUserCounts(prev => ({ ...prev, [activeChannel?.id]: 5 }));
-  }, [activeChannel?.id]);
+    if (!database || !activeChannel) return;
 
-  // Track user counts - SIMPLIFIED
+    const channelId = activeChannel.id.replace(/[.#$[\]]/g, '_');
+    const userPresenceRef = ref(database, `presence/${channelId}/${currentUserId.current}`);
+    const channelPresenceRef = ref(database, `presence/${channelId}`);
+    const channelActivityRef = ref(database, `activity/${channelId}`);
+    
+    // Track this specific tab/session
+    const tabId = Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    
+    // Set user as online in current channel with tab tracking
+    runTransaction(userPresenceRef, (current) => {
+      const existingTabs = current?.tabs || {};
+      return {
+        online: true,
+        lastSeen: Date.now(),
+        channel: channelId,
+        tabs: {
+          ...existingTabs,
+          [tabId]: {
+            active: true,
+            lastSeen: Date.now()
+          }
+        }
+      };
+    });
+
+    // Heartbeat to keep presence updated every 10 seconds
+    const heartbeatInterval = setInterval(() => {
+      runTransaction(userPresenceRef, (current) => {
+        const existingTabs = current?.tabs || {};
+        return {
+          ...current,
+          lastSeen: Date.now(),
+          online: true,
+          tabs: {
+            ...existingTabs,
+            [tabId]: {
+              active: true,
+              lastSeen: Date.now()
+            }
+          }
+        };
+      });
+    }, 10000);
+
+    // Update channel activity
+    runTransaction(channelActivityRef, () => ({
+      lastActivity: serverTimestamp(),
+      hasActiveUsers: true
+    }));
+
+    // Remove this tab when disconnecting, but keep user if other tabs active
+    onDisconnect(userPresenceRef).remove();
+    onDisconnect(channelActivityRef).update({
+      hasActiveUsers: false
+    });
+    onDisconnect(channelActivityRef).update({
+      hasActiveUsers: false
+    });
+
+    // Listen for presence changes in current channel with improved user counting
+    const unsubscribe = onValue(channelPresenceRef, (snapshot) => {
+      const presenceData = snapshot.val() || {};
+      const now = Date.now();
+      
+      // Count unique users (not tabs) who are truly active
+      const activeUserIds = Object.keys(presenceData).filter(userId => {
+        const userData = presenceData[userId];
+        if (!userData || !userData.online) return false;
+        
+        // Check if user has any active tabs in the last 30 seconds
+        const userTabs = userData.tabs || {};
+        const hasActiveTabs = Object.values(userTabs).some(tab => 
+          tab.active && (now - (tab.lastSeen || 0)) < 30000
+        );
+        
+        return hasActiveTabs || (now - (userData.lastSeen || 0)) < 30000;
+      });
+      
+      setActiveUsers(Math.max(1, activeUserIds.length));
+    });
+
+    // Store reference for cleanup
+    presenceRef.current = userPresenceRef;
+
+    return () => {
+      unsubscribe();
+      clearInterval(heartbeatInterval);
+      
+      // Simple cleanup - remove user presence on unmount
+      runTransaction(userPresenceRef, () => null);
+    };
+  }, [database, activeChannel]);
+
+  // Track user counts across all channels for sorting
   useEffect(() => {
-    // Just set default counts instead of complex tracking
+    if (!database) return;
+
     const defaultChannels = [
       'vibes', 'gaming', 'movies', 'sports', 'family-friendly', 
       'random-chat', 'just-chatting', 'music', 'late-night'
     ];
 
-    const defaultCounts = {};
-    defaultChannels.forEach(channel => {
-      defaultCounts[channel] = Math.floor(Math.random() * 10) + 1; // 1-10 users
-    });
-    
-    setChannelUserCounts(defaultCounts);
-  }, []);
+    const unsubscribers = [];
 
-  // Simplified message handling - no complex Firebase listeners for performance
-  useEffect(() => {
-    // Just initialize with empty messages for the channel
-    setMessages([]);
-  }, [activeChannel?.id]);
+    defaultChannels.forEach(channelId => {
+      const sanitizedChannelId = channelId.replace(/[.#$[\]]/g, '_');
+      const channelPresenceRef = ref(database, `presence/${sanitizedChannelId}`);
+      
+      const unsubscribe = onValue(channelPresenceRef, (snapshot) => {
+        const presenceData = snapshot.val() || {};
+        const now = Date.now();
+        
+        // Count unique users who are truly active in this channel
+        const activeUserIds = Object.keys(presenceData).filter(userId => {
+          const userData = presenceData[userId];
+          if (!userData || !userData.online) return false;
+          
+          // Check if user has any active tabs in the last 30 seconds
+          const userTabs = userData.tabs || {};
+          const hasActiveTabs = Object.values(userTabs).some(tab => 
+            tab.active && (now - (tab.lastSeen || 0)) < 30000
+          );
+          
+          return hasActiveTabs || (now - (userData.lastSeen || 0)) < 30000;
+        });
+        
+        setChannelUserCounts(prev => ({
+          ...prev,
+          [channelId]: activeUserIds.length
+        }));
+      });
+      
+      unsubscribers.push(unsubscribe);
+    });
+
+    return () => {
+      unsubscribers.forEach(unsub => unsub());
+    };
+  }, [database]);
 
   // Effect for handling Firebase message listeners based on activeChannel
   // TRUE FLOWING MESSAGING ARCHITECTURE:
@@ -961,13 +1106,70 @@ const MainChatInterface = () => {
     };
   };
 
-  // Simplified message flow - no complex positioning for performance
+  // Regular channel persistent message flow - continues after refresh
   useEffect(() => {
-    if (!activeChannel?.id) return;
+    if (!activeChannel?.id) {
+      return;
+    }
+
+    let isActive = true;
     
-    // Just set messages to empty array for the channel - no complex flow
-    setMessages([]);
-  }, [activeChannel?.id]);
+    const updateRegularFlow = () => {
+      if (!isActive) return;
+      
+      // Use the current messages state directly without dependencies to avoid interference
+      setMessages(prevMessages => {
+        const flowMessages = [];
+        
+        // Process all current messages for position updates
+        prevMessages.forEach(message => {
+          if (message.channelId === activeChannel.id && 
+              message.text && 
+              message.author &&
+              message.timestamp) {
+            
+            // Use stored current position if available (for restored messages), otherwise calculate
+            const position = message.currentPosition || getServerSyncedMessagePosition(message.timestamp, activeChannel.id);
+            
+            if (!position.isExpired) {
+              flowMessages.push({
+                ...message,
+                position: position,
+                animationDuration: `${REGULAR_MESSAGE_FLOW_DURATION / 1000}s`,
+                isPersistent: true,
+                // Clear currentPosition after first use to allow normal flow calculation
+                currentPosition: undefined
+              });
+            }
+          }
+        });
+        
+        // Only update if there are meaningful changes to prevent unnecessary re-renders
+        if (prevMessages.length === flowMessages.length && 
+            flowMessages.every((msg, index) => 
+              prevMessages[index] && 
+              prevMessages[index].id === msg.id &&
+              Math.abs((prevMessages[index].position?.x || 0) - (msg.position?.x || 0)) < 5 &&
+              Math.abs((prevMessages[index].position?.y || 0) - (msg.position?.y || 0)) < 5
+            )) {
+          return prevMessages; // No significant changes, keep same reference
+        }
+        
+        return flowMessages;
+      });
+    };
+
+    // Initial update
+    updateRegularFlow();
+    
+    // Update every 5 seconds instead of 2 seconds for better performance
+    const flowInterval = setInterval(updateRegularFlow, 5000);
+
+    return () => {
+      isActive = false;
+      clearInterval(flowInterval);
+    };
+  }, [activeChannel?.id]); // Remove messages dependency to prevent interference
 
   // Show loading screen while checking authentication
   if (!authChecked) {
@@ -1377,6 +1579,6 @@ const MainChatInterface = () => {
       </div>
     </div>
   );
-};
+}
 
 export default MainChatInterface;

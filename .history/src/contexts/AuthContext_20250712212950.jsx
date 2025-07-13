@@ -44,29 +44,15 @@ export const AuthProvider = ({ children, database }) => {
         const savedAuth = localStorage.getItem('fade-auth');
         if (savedAuth) {
           const authData = JSON.parse(savedAuth);
-          
-          // Check if user exists in local storage first
-          const localUsers = JSON.parse(localStorage.getItem('fade-local-users') || '{}');
-          if (localUsers[authData.username]) {
-            const userData = localUsers[authData.username];
-            setUser({ 
-              ...userData,
-              username: authData.username, 
-              isSignedIn: true
-            });
-            setIsSignedIn(true);
-          } else {
-            // Default user data if not found locally
-            setUser({ 
-              username: authData.username, 
-              isSignedIn: true,
-              xp: 0,
-              level: 1,
-              totalMessages: 0,
-              totalLikes: 0
-            });
-            setIsSignedIn(true);
-          }
+          setUser({ 
+            username: authData.username, 
+            isSignedIn: true,
+            xp: 0,
+            level: 1,
+            totalMessages: 0,
+            totalLikes: 0
+          });
+          setIsSignedIn(true);
         }
       } catch (error) {
         localStorage.removeItem('fade-auth');
@@ -191,24 +177,6 @@ export const AuthProvider = ({ children, database }) => {
       ]);
       
       if (!snapshot.exists()) {
-        // Check local storage as fallback
-        const localUsers = JSON.parse(localStorage.getItem('fade-local-users') || '{}');
-        if (localUsers[username]) {
-          const userData = localUsers[username];
-          if (userData.password !== password) {
-            throw new Error('Invalid password');
-          }
-          
-          // Save auth locally
-          localStorage.setItem('fade-auth', JSON.stringify({ username, password }));
-          
-          const user = { ...userData, username, isSignedIn: true };
-          setUser(user);
-          setIsSignedIn(true);
-          
-          return user;
-        }
-        
         throw new Error('User not found');
       }
 

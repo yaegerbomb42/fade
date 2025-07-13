@@ -399,6 +399,13 @@ const MainChatInterface = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Track user presence - DISABLED FOR PERFORMANCE
+  useEffect(() => {
+    // Just set a default user count instead of tracking presence
+    setActiveUsers(5); // Default active users
+    setChannelUserCounts(prev => ({ ...prev, [activeChannel?.id]: 5 }));
+  }, [activeChannel?.id]);
+
   // Track user presence - SIMPLIFIED FOR PERFORMANCE
   useEffect(() => {
     // Just set default values instead of complex Firebase tracking

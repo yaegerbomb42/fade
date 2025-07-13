@@ -20,53 +20,21 @@ export const AuthProvider = ({ children, database }) => {
   
   const guestUserId = getUserId();
 
-  // Test database connection on mount
-  useEffect(() => {
-    const testConnection = async () => {
-      if (database) {
-        try {
-          // Try a simple read operation to test connection
-          const testRef = ref(database, '.info/connected');
-          const snapshot = await get(testRef);
-          console.log('Database connection test:', snapshot.exists() ? 'Connected' : 'Not connected');
-        } catch (error) {
-          console.error('Database connection test failed:', error);
-        }
-      }
-    };
-
-    testConnection();
-  }, [database]);
-
   useEffect(() => {
     const checkAuth = () => {
       try {
         const savedAuth = localStorage.getItem('fade-auth');
         if (savedAuth) {
           const authData = JSON.parse(savedAuth);
-          
-          // Check if user exists in local storage first
-          const localUsers = JSON.parse(localStorage.getItem('fade-local-users') || '{}');
-          if (localUsers[authData.username]) {
-            const userData = localUsers[authData.username];
-            setUser({ 
-              ...userData,
-              username: authData.username, 
-              isSignedIn: true
-            });
-            setIsSignedIn(true);
-          } else {
-            // Default user data if not found locally
-            setUser({ 
-              username: authData.username, 
-              isSignedIn: true,
-              xp: 0,
-              level: 1,
-              totalMessages: 0,
-              totalLikes: 0
-            });
-            setIsSignedIn(true);
-          }
+          setUser({ 
+            username: authData.username, 
+            isSignedIn: true,
+            xp: 0,
+            level: 1,
+            totalMessages: 0,
+            totalLikes: 0
+          });
+          setIsSignedIn(true);
         }
       } catch (error) {
         localStorage.removeItem('fade-auth');
@@ -130,41 +98,6 @@ export const AuthProvider = ({ children, database }) => {
       return newUser;
     } catch (error) {
       console.error('Sign up error:', error);
-      
-      // Fallback to local-only account creation if Firebase fails
-      if (error.message.includes('timeout') || error.message.includes('network') || error.message.includes('permission')) {
-        console.log('Firebase failed, creating local account');
-        
-        // Check local storage for existing users
-        const localUsers = JSON.parse(localStorage.getItem('fade-local-users') || '{}');
-        if (localUsers[username]) {
-          throw new Error('Username already taken');
-        }
-        
-        // Create local user
-        const newUser = {
-          username,
-          password,
-          createdAt: Date.now(),
-          xp: 0,
-          level: 1,
-          totalMessages: 0,
-          totalLikes: 0,
-          isOnline: true,
-          localOnly: true
-        };
-        
-        // Save to local storage
-        localUsers[username] = newUser;
-        localStorage.setItem('fade-local-users', JSON.stringify(localUsers));
-        localStorage.setItem('fade-auth', JSON.stringify({ username, password }));
-        
-        setUser({ ...newUser, isSignedIn: true });
-        setIsSignedIn(true);
-        
-        return newUser;
-      }
-      
       if (error.message.includes('timeout')) {
         throw new Error('Account creation is taking too long. Please check your connection and try again.');
       }
@@ -191,24 +124,6 @@ export const AuthProvider = ({ children, database }) => {
       ]);
       
       if (!snapshot.exists()) {
-        // Check local storage as fallback
-        const localUsers = JSON.parse(localStorage.getItem('fade-local-users') || '{}');
-        if (localUsers[username]) {
-          const userData = localUsers[username];
-          if (userData.password !== password) {
-            throw new Error('Invalid password');
-          }
-          
-          // Save auth locally
-          localStorage.setItem('fade-auth', JSON.stringify({ username, password }));
-          
-          const user = { ...userData, username, isSignedIn: true };
-          setUser(user);
-          setIsSignedIn(true);
-          
-          return user;
-        }
-        
         throw new Error('User not found');
       }
 

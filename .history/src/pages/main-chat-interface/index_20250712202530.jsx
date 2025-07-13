@@ -399,11 +399,75 @@ const MainChatInterface = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Track user presence - SIMPLIFIED FOR PERFORMANCE
+  // Track user presence - DISABLED FOR PERFORMANCE
   useEffect(() => {
-    // Just set default values instead of complex Firebase tracking
+    // Just set a default user count instead of tracking presence
     setActiveUsers(5); // Default active users
     setChannelUserCounts(prev => ({ ...prev, [activeChannel?.id]: 5 }));
+  }, [activeChannel?.id]);
+
+    // Heartbeat to keep presence updated every 10 seconds
+    const heartbeatInterval = setInterval(() => {
+      runTransaction(userPresenceRef, (current) => {
+        const existingTabs = current?.tabs || {};
+        return {
+          ...current,
+          lastSeen: Date.now(),
+          online: true,
+          tabs: {
+            ...existingTabs,
+            [tabId]: {
+              active: true,
+              lastSeen: Date.now()
+            }
+          }
+        };
+      });
+    }, 10000);
+
+    // Update channel activity
+    runTransaction(channelActivityRef, () => ({
+      lastActivity: serverTimestamp(),
+      hasActiveUsers: true
+    }));
+
+    // Remove this tab when disconnecting, but keep user if other tabs active
+    onDisconnect(userPresenceRef).remove();
+    onDisconnect(channelActivityRef).update({
+      hasActiveUsers: false
+    });
+    onDisconnect(channelActivityRef).update({
+      hasActiveUsers: false
+    });
+
+    // Listen for presence changes in current channel with improved user counting
+    const unsubscribe = onValue(channelPresenceRef, (snapshot) => {
+      const presenceData = snapshot.val() || {};
+      const now = Date.now();
+      
+      // Count unique users (not tabs) who are truly active
+      const activeUserIds = Object.keys(presenceData).filter(userId => {
+        const userData = presenceData[userId];
+        if (!userData || !userData.online) return false;
+        
+        // Check if user has any active tabs in the last 30 seconds
+        const userTabs = userData.tabs || {};
+        const hasActiveTabs = Object.values(userTabs).some(tab => 
+          tab.active && (now - (tab.lastSeen || 0)) < 30000
+        );
+        
+        return hasActiveTabs || (now - (userData.lastSeen || 0)) < 30000;
+      });
+      
+      setActiveUsers(Math.max(1, activeUserIds.length));
+    });
+
+    // Store reference for cleanup
+    presenceRef.current = userPresenceRef;
+
+    return () => {
+      unsubscribe();
+    };
   }, [activeChannel?.id]);
 
   // Track user counts - SIMPLIFIED
@@ -419,6 +483,36 @@ const MainChatInterface = () => {
       defaultCounts[channel] = Math.floor(Math.random() * 10) + 1; // 1-10 users
     });
     
+    setChannelUserCounts(defaultCounts);
+  }, []);
+
+    const unsubscribers = [];
+
+    defaultChannels.forEach(channelId => {
+      const sanitizedChannelId = channelId.replace(/[.#$[\]]/g, '_');
+      const channelPresenceRef = ref(database, `presence/${sanitizedChannelId}`);
+      
+      const unsubscribe = onValue(channelPresenceRef, (snapshot) => {
+        const presenceData = snapshot.val() || {};
+        const now = Date.now();
+        
+        // Count unique users who are truly active in this channel
+        const activeUserIds = Object.keys(presenceData).filter(userId => {
+          const userData = presenceData[userId];
+          if (!userData || !userData.online) return false;
+          
+          // Check if user has any active tabs in the last 30 seconds
+          const userTabs = userData.tabs || {};
+          const hasActiveTabs = Object.values(userTabs).some(tab => 
+            tab.active && (now - (tab.lastSeen || 0)) < 30000
+          );
+          
+          return hasActiveTabs || (now - (userData.lastSeen || 0)) < 30000;
+        });
+        
+        setChannelUserCounts(prev => ({
+          ...prev,
+          [channelId]: activeUserIds.length
     setChannelUserCounts(defaultCounts);
   }, []);
 
@@ -1377,6 +1471,6 @@ const MainChatInterface = () => {
       </div>
     </div>
   );
-};
+}
 
 export default MainChatInterface;

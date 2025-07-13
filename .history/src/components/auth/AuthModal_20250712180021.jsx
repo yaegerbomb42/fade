@@ -9,7 +9,6 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState('');
   
   const { signIn, signUp } = useAuth();
 
@@ -22,7 +21,6 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
       setConfirmPassword('');
       setError('');
       setLoading(false);
-      setLoadingMessage('');
     }
   }, [isOpen, initialMode]);
 
@@ -33,51 +31,43 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
     setError('');
     setLoading(true);
 
-    // Set a maximum loading time to prevent infinite loading
-    const loadingTimeout = setTimeout(() => {
+    // Set a timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
       setLoading(false);
-      setLoadingMessage('');
-      setError('Operation is taking too long. Please try again.');
-    }, 15000);
+      setError('Request timed out. Please check your connection and try again.');
+    }, 30000); // Increased to 30 seconds
 
     try {
       if (mode === 'signup') {
         if (password !== confirmPassword) {
           throw new Error('Passwords do not match');
         }
-        setLoadingMessage('Creating your account...');
         
-        // Add a small delay to show the loading message
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
+        console.log('Attempting to create account for:', username);
         await signUp(username, password);
+        console.log('Account created successfully');
       } else {
-        setLoadingMessage('Signing you in...');
-        
-        // Add a small delay to show the loading message
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
+        console.log('Attempting to sign in:', username);
         await signIn(username, password);
+        console.log('Sign in successful');
       }
       
-      // Clear the timeout since operation completed
-      clearTimeout(loadingTimeout);
+      clearTimeout(timeoutId);
       
       // Clear form
       setUsername('');
       setPassword('');
       setConfirmPassword('');
-      setLoadingMessage('');
       
       // Close modal
       onClose();
     } catch (err) {
-      clearTimeout(loadingTimeout);
-      setLoadingMessage('');
+      clearTimeout(timeoutId);
+      console.error('Authentication error:', err);
       setError(err.message || 'An error occurred during authentication');
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
-      setLoadingMessage('');
     }
   };
 
@@ -86,7 +76,6 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
     setError('');
     setPassword('');
     setConfirmPassword('');
-    setLoadingMessage('');
   };
 
   return (
@@ -170,7 +159,7 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
               {loading ? (
                 <div className="flex items-center justify-center space-x-2">
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>{loadingMessage || (mode === 'signin' ? 'Signing In...' : 'Creating Account...')}</span>
+                  <span>{mode === 'signin' ? 'Signing In...' : 'Creating Account...'}</span>
                 </div>
               ) : (
                 mode === 'signin' ? 'Sign In' : 'Create Account'

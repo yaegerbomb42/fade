@@ -22,7 +22,6 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
       setConfirmPassword('');
       setError('');
       setLoading(false);
-      setLoadingMessage('');
     }
   }, [isOpen, initialMode]);
 
@@ -86,7 +85,6 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
     setError('');
     setPassword('');
     setConfirmPassword('');
-    setLoadingMessage('');
   };
 
   return (
@@ -170,7 +168,7 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
               {loading ? (
                 <div className="flex items-center justify-center space-x-2">
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>{loadingMessage || (mode === 'signin' ? 'Signing In...' : 'Creating Account...')}</span>
+                  <span>{mode === 'signin' ? 'Signing In...' : 'Creating Account...'}</span>
                 </div>
               ) : (
                 mode === 'signin' ? 'Sign In' : 'Create Account'
