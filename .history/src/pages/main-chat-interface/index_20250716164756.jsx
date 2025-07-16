@@ -905,9 +905,9 @@ const MainChatInterface = () => {
       )      }
 
       {/* Authentication UI - Integrated and Minimized */}
-      <div className="fixed top-4 right-4 z-50 flex flex-col space-y-2 items-end max-w-xs">
+      <div className="fixed top-4 right-4 z-50">
         {isSignedIn ? (
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
             {/* User info panel */}
             <div 
               className="glass-panel p-3 cursor-pointer hover:bg-glass-surface/60 transition-all duration-300"
@@ -956,7 +956,7 @@ const MainChatInterface = () => {
             </div>
           </div>
         ) : (
-          <div className="space-y-2 w-full">
+          <div className="space-y-2">
             {/* Minimized Auth UI */}
             {(authUIMinimized && !guestModeConfirmed) ? (
               <div className="glass-panel p-2">
