@@ -271,24 +271,30 @@ export const AuthProvider = ({ children, database }) => {
 
     try {
       const updates = {};
-      if (messagesSent) {
+      let xpGained = 0;
+
+      if (messagesSent > 0) {
         updates.totalMessages = (user.totalMessages || 0) + messagesSent;
-        updates.xp = (user.xp || 0) + (messagesSent * 5); // 5 XP per message
+        xpGained += messagesSent * 5;
       }
-      if (likesReceived) {
+      if (likesReceived > 0) {
         updates.totalLikes = (user.totalLikes || 0) + likesReceived;
-        updates.xp = (user.xp || 0) + (likesReceived * 10); // 10 XP per like
+        xpGained += likesReceived * 10;
       }
-      if (dislikesReceived) {
+      if (dislikesReceived > 0) {
         updates.totalDislikes = (user.totalDislikes || 0) + dislikesReceived;
       }
 
-      if (updates.xp) {
-        updates.level = Math.floor(updates.xp / 100) + 1;
+      if (xpGained > 0) {
+        const newXp = (user.xp || 0) + xpGained;
+        updates.xp = newXp;
+        updates.level = Math.floor(newXp / 100) + 1;
       }
 
-      await update(ref(database, `users/${user.username}`), updates);
-      setUser(prev => ({ ...prev, ...updates }));
+      if (Object.keys(updates).length > 0) {
+        await update(ref(database, `users/${user.username}`), updates);
+        setUser(prev => ({ ...prev, ...updates }));
+      }
     } catch (error) {
       console.error('Error updating user stats:', error);
       throw error; // Re-throw to let caller handle
