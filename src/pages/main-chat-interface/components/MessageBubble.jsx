@@ -37,7 +37,7 @@ const MessageBubble = ({
       // Calculate current position based on spawn time
       const now = Date.now();
       const messageAge = now - message.position.spawnTime;
-      const animationDuration = 90000; // 90 seconds
+      const animationDuration = 180000; // 3 minutes - match main interface
       const progress = Math.min(messageAge / animationDuration, 1);
       
       const startX = 105;
@@ -192,34 +192,34 @@ const MessageBubble = ({
     ? userGradients[index % userGradients.length]
     : gradients[index % gradients.length];
 
-  // Calculate animation duration based on activity level with much slower speeds for visibility and stability
+  // Calculate animation duration based on activity level with very slow speeds for maximum stability
   // activityLevel is expected to be a number between 1 and 5
   // Higher activityLevel means faster animation (shorter duration)
   useEffect(() => {
     // Clamp activityLevel between 1 and 5
     const clampedActivity = Math.min(Math.max(activityLevel, 1), 5);
-    const minDuration = 45; // Much slower minimum duration for interaction stability
-    const maxDuration = 90; // Very slow maximum duration for readability
+    const minDuration = 90; // Very slow minimum duration for maximum interaction stability
+    const maxDuration = 180; // Extremely slow maximum duration for full readability
     
     // Content-based speed adjustment (longer messages slightly slower)
     const messageLength = message.text ? message.text.length : 50;
-    const lengthMultiplier = 1 + (messageLength / 300); // Reduced impact for better stability
+    const lengthMultiplier = 1 + (messageLength / 200); // Reduced impact for better stability
     
     // Traffic-based speed adjustment (more messages = faster flow)
-    const trafficMultiplier = totalMessages > 0 ? 1 + (totalMessages / 60) : 1;
+    const trafficMultiplier = totalMessages > 0 ? 1 + (totalMessages / 80) : 1;
     
     // Map activityLevel (1-5) to duration range
     const baseDuration = maxDuration - ((clampedActivity - 1) / 4) * (maxDuration - minDuration);
-    const adjustedDuration = baseDuration * lengthMultiplier * Math.min(trafficMultiplier, 1.3);
+    const adjustedDuration = baseDuration * lengthMultiplier * Math.min(trafficMultiplier, 1.2);
     
-    setAnimationDuration(`${Math.min(adjustedDuration, 120)}s`); // Cap at 120 seconds for stability
+    setAnimationDuration(`${Math.min(adjustedDuration, 240)}s`); // Cap at 240 seconds for maximum stability
   }, [activityLevel, totalMessages, message.text]);
 
 
 
   useEffect(() => {
-    // For persistent messages or messages with synchronized positions, don't animate - use calculated position
-    if (message.isPersistent || (message.position && message.position.spawnTime)) {
+    // For persistent messages, restored messages, or messages with synchronized positions, don't animate - use calculated position
+    if (message.isPersistent || message.isRestored || (message.position && message.position.spawnTime)) {
       if (message.currentPosition) {
         setPosition({
           top: message.currentPosition.top,
@@ -249,7 +249,7 @@ const MessageBubble = ({
       };
     });
 
-    // Start the right-to-left animation with a much longer delay for better interaction
+    // Start the right-to-left animation with a very long delay for maximum interaction time
     const moveTimer = setTimeout(() => {
       setPosition(prev => {
         console.log('Starting animation to left:', { ...prev, left: finalLeft });
@@ -258,7 +258,7 @@ const MessageBubble = ({
           left: finalLeft
         };
       });
-    }, 1500); // Much longer delay for user interaction and readability
+    }, 3000); // Very long delay for better user interaction and readability
 
     return () => {
       clearTimeout(moveTimer);

@@ -45,7 +45,16 @@ const MainChatInterface = () => {
     const hasVisited = localStorage.getItem('fade-has-visited');
     return !hasVisited;
   });
-  const [messageTimestamps, setMessageTimestamps] = useState([]);
+  // Add state for persistent message storage across page refreshes
+  const [persistentMessages, setPersistentMessages] = useState(() => {
+    try {
+      const stored = localStorage.getItem(`persistent_messages_${activeChannel?.id || 'default'}`);
+      return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+      console.error('Error loading persistent messages:', error);
+      return [];
+    }
+  });
   const [activityLevel, setActivityLevel] = useState(1);
   const [showTopVibes, setShowTopVibes] = useState(false);
   const [channelVibesHistory, setChannelVibesHistory] = useState({}); // Only for top vibes
@@ -53,6 +62,72 @@ const MainChatInterface = () => {
   const [channelUserCounts, setChannelUserCounts] = useState({}); // Track users per channel
   const [isMobileView, setIsMobileView] = useState(false); // Mobile state
   const [errorMessage, setErrorMessage] = useState(''); // For user-facing error notifications
+  
+  // Store messages to localStorage for persistence across refreshes
+  useEffect(() => {
+    if (!activeChannel?.id) return;
+    
+    const messagesToStore = messages.filter(msg => {
+      const now = Date.now();
+      const messageTime = msg.position?.spawnTime || new Date(msg.timestamp).getTime();
+      const age = now - messageTime;
+      // Only persist messages that are less than 4 minutes old
+      return age < 240000;
+    }).map(msg => ({
+      ...msg,
+      persistedAt: Date.now() // Mark when it was stored
+    }));
+    
+    try {
+      localStorage.setItem(`persistent_messages_${activeChannel.id}`, JSON.stringify(messagesToStore));
+    } catch (error) {
+      console.error('Error storing persistent messages:', error);
+    }
+  }, [messages, activeChannel?.id]);
+
+  // Load persistent messages when channel changes
+  useEffect(() => {
+    if (!activeChannel?.id) return;
+    
+    try {
+      const stored = localStorage.getItem(`persistent_messages_${activeChannel.id}`);
+      if (stored) {
+        const persistedMessages = JSON.parse(stored);
+        const now = Date.now();
+        
+        // Filter out messages that are too old (more than 4 minutes)
+        const validMessages = persistedMessages.filter(msg => {
+          const messageTime = msg.position?.spawnTime || new Date(msg.timestamp).getTime();
+          const age = now - messageTime;
+          return age < 240000;
+        });
+        
+        // Calculate current positions for persisted messages
+        const messagesWithCurrentPositions = validMessages.map(msg => {
+          if (msg.position && msg.position.spawnTime) {
+            const currentPosition = calculateSynchronizedPosition(msg.position, msg.timestamp);
+            return {
+              ...msg,
+              currentPosition: currentPosition,
+              isRestored: true
+            };
+          }
+          return msg;
+        });
+        
+        // Merge with any existing messages, avoiding duplicates
+        setMessages(prevMessages => {
+          const existingIds = new Set(prevMessages.map(m => m.id));
+          const newMessages = messagesWithCurrentPositions.filter(m => !existingIds.has(m.id));
+          return [...prevMessages, ...newMessages];
+        });
+        
+        console.log(`Restored ${messagesWithCurrentPositions.length} messages for channel ${activeChannel.id}`);
+      }
+    } catch (error) {
+      console.error('Error loading persistent messages:', error);
+    }
+  }, [activeChannel?.id]);
   
   // New authentication and feature state
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -580,7 +655,7 @@ const MainChatInterface = () => {
     
     const now = Date.now();
     const messageAge = now - originalPosition.spawnTime;
-    const maxAge = 120000; // 2 minutes max age for messages
+    const maxAge = 240000; // 4 minutes max age for messages
     
     // If message is too old, it should be off-screen
     if (messageAge > maxAge) {
@@ -588,7 +663,7 @@ const MainChatInterface = () => {
     }
     
     // Calculate progress through animation (0 = just spawned, 1 = fully traversed)
-    const animationDuration = 90000; // 90 seconds base duration
+    const animationDuration = 180000; // 3 minutes base duration for maximum stability
     const progress = Math.min(messageAge / animationDuration, 1);
     
     // Smooth easing for natural movement
@@ -846,7 +921,7 @@ const MainChatInterface = () => {
     // Clean up expired messages every 10 seconds
     const cleanupInterval = setInterval(() => {
       const now = Date.now();
-      const maxAge = 120000; // 2 minutes max age
+      const maxAge = 240000; // 4 minutes max age for very slow messages
       
       setMessages((prevMessages) => {
         return prevMessages.filter(msg => {
