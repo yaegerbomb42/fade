@@ -22,9 +22,9 @@ const MessageBubble = ({
     return null;
   }
   
-  // Server-based positioning for consistent placement across all users
-  const [position, setPosition] = useState(() => {
-    // Check if message has synchronized position data
+  // Server-synchronized positioning - calculate current position based on message timestamp
+  const calculateCurrentPosition = () => {
+    // Use synchronized position calculation that matches the main interface
     if (message.currentPosition) {
       return {
         top: message.currentPosition.top,
@@ -32,44 +32,77 @@ const MessageBubble = ({
       };
     }
     
-    // If message has stored position, use it for synchronization
+    // If message has stored position with spawn time, calculate current position using exact same algorithm as main interface
     if (message.position && message.position.spawnTime) {
-      // Calculate current position based on spawn time
       const now = Date.now();
       const messageAge = now - message.position.spawnTime;
-      const animationDuration = 180000; // 3 minutes - match main interface
+      const maxAge = 240000; // 4 minutes max age for messages
+      
+      // If message is too old, it should be off-screen
+      if (messageAge > maxAge) {
+        return { top: message.position.top, left: -50, isExpired: true };
+      }
+      
+      // Calculate progress through animation (0 = just spawned, 1 = fully traversed)
+      const animationDuration = 180000; // 3 minutes base duration for maximum stability
       const progress = Math.min(messageAge / animationDuration, 1);
       
+      // Smooth easing for natural movement - exact same as main interface
+      const easeOut = (t) => 1 - Math.pow(1 - t, 2.5);
+      const easedProgress = easeOut(progress);
+      
+      // Calculate current position - exact same as main interface
       const startX = 105;
       const endX = -30;
-      const easeOut = (t) => 1 - Math.pow(1 - t, 2.5);
-      const currentX = startX - (easeOut(progress) * (startX - endX));
+      const currentX = startX - (easedProgress * (startX - endX));
       
       return {
         top: message.position.top,
-        left: currentX
+        left: currentX,
+        progress: progress,
+        isExpired: progress >= 1
       };
     }
     
-    // Fallback to lane-based positioning for new messages
+    // For messages without position data, generate deterministic position using same algorithm as main interface
+    const messageTime = new Date(message.timestamp).getTime();
+    const now = Date.now();
+    const messageAge = now - messageTime;
+    
+    // Generate deterministic position using message timestamp (same as main interface)
+    const timeSeed = Math.floor(messageTime / 1000); // Use seconds for stability
+    const combinedSeed = (timeSeed + index) * 9301 + 49297;
+    const pseudoRandom = (combinedSeed % 233280) / 233280;
+    
     const lanes = 12;
-    const laneHeight = 75 / lanes;
+    const laneHeight = 75 / lanes; // 75% usable height
     const topMargin = 12.5;
-    const lane = index % lanes;
-    const baseTop = topMargin + (lane * laneHeight) + (laneHeight / 2);
-    const randomOffset = (Math.random() - 0.5) * 2;
+    const lane = Math.floor(pseudoRandom * lanes);
+    const laneCenter = topMargin + lane * laneHeight + laneHeight / 2;
+    const randomOffset = (pseudoRandom - 0.5) * 4; // Deterministic offset
+    
+    // Calculate progress and position
+    const animationDuration = 180000; // 3 minutes
+    const progress = Math.min(Math.max(0, messageAge / animationDuration), 1);
+    const easeOut = (t) => 1 - Math.pow(1 - t, 2.5);
+    const easedProgress = easeOut(progress);
+    
+    const startX = 105;
+    const endX = -30;
+    const currentX = startX - (easedProgress * (startX - endX));
     
     return {
-      top: Math.max(15, Math.min(85, baseTop + randomOffset)),
-      left: 100,
+      top: Math.max(15, Math.min(85, laneCenter + randomOffset)),
+      left: currentX,
+      progress: progress,
+      isExpired: progress >= 1
     };
-  });
+  };
+  
+  const [position, setPosition] = useState(calculateCurrentPosition);
   const [isVisible, setIsVisible] = useState(false);
-  const [animationDuration, setAnimationDuration] = useState('35s'); // Slower default duration
   const [hasReacted, setHasReacted] = useState({ thumbsUp: false, thumbsDown: false });
-  const [flowSpeed, setFlowSpeed] = useState('message-flow');
   const [bubbleSize, setBubbleSize] = useState({ width: 'auto', height: 'auto' });
-  const [isPaused, setIsPaused] = useState(false); // Add pause state for better interaction
 
   // Calculate dynamic bubble size based on content
   const calculateBubbleSize = (text) => {
@@ -192,90 +225,36 @@ const MessageBubble = ({
     ? userGradients[index % userGradients.length]
     : gradients[index % gradients.length];
 
-  // Calculate animation duration based on activity level with very slow speeds for maximum stability
-  // activityLevel is expected to be a number between 1 and 5
-  // Higher activityLevel means faster animation (shorter duration)
+
+
+  // Update position when message.currentPosition changes or every 2 seconds for synchronization
   useEffect(() => {
-    // Clamp activityLevel between 1 and 5
-    const clampedActivity = Math.min(Math.max(activityLevel, 1), 5);
-    const minDuration = 90; // Very slow minimum duration for maximum interaction stability
-    const maxDuration = 180; // Extremely slow maximum duration for full readability
-    
-    // Content-based speed adjustment (longer messages slightly slower)
-    const messageLength = message.text ? message.text.length : 50;
-    const lengthMultiplier = 1 + (messageLength / 200); // Reduced impact for better stability
-    
-    // Traffic-based speed adjustment (more messages = faster flow)
-    const trafficMultiplier = totalMessages > 0 ? 1 + (totalMessages / 80) : 1;
-    
-    // Map activityLevel (1-5) to duration range
-    const baseDuration = maxDuration - ((clampedActivity - 1) / 4) * (maxDuration - minDuration);
-    const adjustedDuration = baseDuration * lengthMultiplier * Math.min(trafficMultiplier, 1.2);
-    
-    setAnimationDuration(`${Math.min(adjustedDuration, 240)}s`); // Cap at 240 seconds for maximum stability
-  }, [activityLevel, totalMessages, message.text]);
-
-
-
-  useEffect(() => {
-    // For persistent messages, restored messages, or messages with synchronized positions, don't animate - use calculated position
-    if (message.isPersistent || message.isRestored || (message.position && message.position.spawnTime)) {
-      if (message.currentPosition) {
-        setPosition({
-          top: message.currentPosition.top,
-          left: message.currentPosition.left
-        });
+    // Always use synchronized positioning - no local animation overrides
+    const updatePosition = () => {
+      const newPosition = calculateCurrentPosition();
+      setPosition(newPosition);
+      
+      // If message is expired, trigger removal
+      if (newPosition.isExpired) {
+        setTimeout(() => {
+          onRemove && onRemove(message.id);
+        }, 1000); // Small delay to allow for smooth exit
       }
-      setIsVisible(true);
-      return;
-    }
-
-    // Debug logging
-    console.log('MessageBubble animation starting for:', message.text?.substring(0, 20) + '...');
-
-    // For new messages without position data, start fresh animation
-    setIsVisible(true);
-
-    // Start animation with more stable flow and longer visibility
-    const startLeft = 100; // Start from right edge (just off-screen)
-    const finalLeft = -30; // End position - less aggressive off-screen for better visibility
-    
-    // Force position to start from right side
-    setPosition(prev => {
-      console.log('Setting initial position:', { ...prev, left: startLeft });
-      return {
-        ...prev,
-        left: startLeft
-      };
-    });
-
-    // Start the right-to-left animation with a very long delay for maximum interaction time
-    const moveTimer = setTimeout(() => {
-      setPosition(prev => {
-        console.log('Starting animation to left:', { ...prev, left: finalLeft });
-        return {
-          ...prev,
-          left: finalLeft
-        };
-      });
-    }, 3000); // Very long delay for better user interaction and readability
-
-    return () => {
-      clearTimeout(moveTimer);
     };
-  }, [message]);
+    
+    // Initial position update
+    updatePosition();
+    setIsVisible(true);
+    
+    // Update position every 2 seconds for smooth synchronized movement
+    const positionInterval = setInterval(updatePosition, 2000);
+    
+    return () => {
+      clearInterval(positionInterval);
+    };
+  }, [message, message.currentPosition]); // React to currentPosition changes from main interface
 
-  useEffect(() => {
-    const durationMs = parseFloat(animationDuration) * 1000;
-    const removeTimer = setTimeout(() => {
-      // Call parent cleanup callback if provided
-      if (message.onRemove) {
-        message.onRemove(message.id);
-      }
-      onRemove && onRemove(message.id);
-    }, durationMs);
-    return () => clearTimeout(removeTimer);
-  }, [animationDuration, message.id, message.onRemove, onRemove]);
+
 
   const handleThumbsUp = async (e) => {
     e.stopPropagation();
@@ -353,17 +332,13 @@ const MessageBubble = ({
         minWidth: '180px', // Increased minimum width
         maxWidth: '500px', // Increased maximum width
         transform: `scale(${bubbleSize.scale || 1})`,
-        transition: message.isPersistent 
-          ? 'opacity 0.3s ease, transform 0.3s ease' 
-          : isPaused 
-            ? 'opacity 0.3s ease, transform 0.3s ease' // Pause animation on hover
-            : `left ${animationDuration} linear, opacity 0.3s ease, transform 0.3s ease`,
+        transition: 'left 2s ease-out, opacity 0.3s ease, transform 0.3s ease',
         willChange: 'left, opacity, transform',
         zIndex: 100 + index, // High z-index to ensure visibility
         position: 'fixed' // Ensure fixed positioning for screen flow
       }}
-      onMouseEnter={() => setIsPaused(true)} // Pause animation on hover
-      onMouseLeave={() => setIsPaused(false)} // Resume animation when not hovering
+      onMouseEnter={() => {}} // No pause functionality needed with synchronized positioning
+      onMouseLeave={() => {}} // No pause functionality needed with synchronized positioning
     >
       <div className={`vibey-card bg-gradient-to-br ${bubbleGradient} border border-glass-border/30 hover:border-glass-highlight/50 transition-all duration-300 group relative overflow-hidden`}>
         

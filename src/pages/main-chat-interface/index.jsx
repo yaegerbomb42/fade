@@ -493,8 +493,8 @@ const MainChatInterface = () => {
   }, [navigate]);
 
   const handleSendMessage = useCallback(async (messageData) => {
-    if (!activeChannel || !activeChannel.id || !database) {
-      console.error("SendMessage: No active channel or DB not initialized");
+    if (!activeChannel || !activeChannel.id) {
+      console.error("SendMessage: No active channel");
       return;
     }
 
@@ -558,27 +558,41 @@ const MainChatInterface = () => {
       timestamp: new Date().toISOString(),
       position: messagePosition, // Server-determined position
       createdAt: Date.now(), // For precise timing synchronization
-      userId: userId // Track who sent it
+      userId: userId, // Track who sent it
+      id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` // Generate local ID
     };
 
-    const messagesRef = ref(database, `channels/${activeChannel.id.replace(/[.#$[\]]/g, '_')}/messages`);
-    
-    try {
-      await firebasePush(messagesRef, newMessagePayload);
-      console.log('Message sent successfully:', newMessagePayload.text.substring(0, 20) + '...');
+    // Try to send to Firebase if available, otherwise add locally for testing
+    if (database) {
+      const messagesRef = ref(database, `channels/${activeChannel.id.replace(/[.#$[\]]/g, '_')}/messages`);
       
-      // Update user stats for signed-in users
-      if (isSignedIn && updateUserStats && user) {
-        try {
-          await updateUserStats(1, 0, 0); // +1 message
-        } catch (statsError) {
-          console.error('Failed to update user stats:', statsError);
-          // Don't let stats error prevent message sending
+      try {
+        await firebasePush(messagesRef, newMessagePayload);
+        console.log('Message sent successfully to Firebase:', newMessagePayload.text.substring(0, 20) + '...');
+        
+        // Update user stats for signed-in users
+        if (isSignedIn && updateUserStats && user) {
+          try {
+            await updateUserStats(1, 0, 0); // +1 message
+          } catch (statsError) {
+            console.error('Failed to update user stats:', statsError);
+            // Don't let stats error prevent message sending
+          }
         }
+      } catch (error) {
+        console.error('Failed to send message to Firebase:', error);
+        // Fall through to local message creation
       }
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      // Could add user notification here
+    } else {
+      // Firebase not available, create local message for testing
+      console.log('Firebase not available, creating local message for testing:', newMessagePayload.text.substring(0, 20) + '...');
+      
+      // Calculate current position for immediate display
+      const currentPosition = calculateSynchronizedPosition(messagePosition, newMessagePayload.timestamp);
+      newMessagePayload.currentPosition = currentPosition;
+      
+      // Add message locally
+      setMessages(prev => [...prev, newMessagePayload]);
     }
   }, [activeChannel, database, isSignedIn, user, updateUserStats]);
 
