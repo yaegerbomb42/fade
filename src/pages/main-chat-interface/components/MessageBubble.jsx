@@ -36,7 +36,7 @@ const MessageBubble = ({
     if (message.position && message.position.spawnTime) {
       const now = Date.now();
       const messageAge = now - message.position.spawnTime;
-      const maxAge = 240000; // 4 minutes max age for messages
+      const maxAge = 20000; // 20 seconds max age for faster cycling
       
       // If message is too old, it should be off-screen
       if (messageAge > maxAge) {
@@ -44,7 +44,7 @@ const MessageBubble = ({
       }
       
       // Calculate progress through animation (0 = just spawned, 1 = fully traversed)
-      const animationDuration = 180000; // 3 minutes base duration for maximum stability
+      const animationDuration = 15000; // 15 seconds for faster flow
       const progress = Math.min(messageAge / animationDuration, 1);
       
       // Smooth easing for natural movement - exact same as main interface
@@ -82,7 +82,7 @@ const MessageBubble = ({
     const randomOffset = (pseudoRandom - 0.5) * 4; // Deterministic offset
     
     // Calculate progress and position
-    const animationDuration = 180000; // 3 minutes
+    const animationDuration = 15000; // 15 seconds for faster flow
     const progress = Math.min(Math.max(0, messageAge / animationDuration), 1);
     const easeOut = (t) => 1 - Math.pow(1 - t, 2.5);
     const easedProgress = easeOut(progress);
@@ -109,23 +109,23 @@ const MessageBubble = ({
     const textLength = text.length;
     const lineCount = text.split('\n').length;
     
-    // Base sizes - increased for better readability
-    const minWidth = 180; // Increased minimum width for better readability
-    const maxWidth = 500; // Increased maximum width for longer messages
-    const baseHeight = 60; // Increased base height for better text spacing
+    // More compact base sizes for better screen usage
+    const minWidth = 120; // Compact minimum width
+    const maxWidth = 350; // Reasonable maximum width
+    const baseHeight = 40; // Compact base height
     
-    // Calculate width based on text length - more generous sizing
-    const charBasedWidth = Math.min(maxWidth, minWidth + (textLength * 10));
+    // Calculate width based on text length - more efficient sizing
+    const charBasedWidth = Math.min(maxWidth, minWidth + (textLength * 8));
     
     // Calculate height based on line count and estimated wrapping
-    const estimatedLinesFromLength = Math.ceil(textLength / 25); // Better wrapping estimate
+    const estimatedLinesFromLength = Math.ceil(textLength / 30); // Better wrapping estimate
     const totalLines = Math.max(lineCount, estimatedLinesFromLength);
-    const calculatedHeight = baseHeight + ((totalLines - 1) * 24); // Better line spacing
+    const calculatedHeight = baseHeight + ((totalLines - 1) * 20); // Better line spacing
     
     return {
       width: `${charBasedWidth}px`,
       height: `${calculatedHeight}px`,
-      scale: Math.min(1.4, 0.9 + (textLength / 140)) // Increased scale for better visibility
+      scale: Math.min(1.0, 0.8 + (textLength / 200)) // More reasonable scale
     };
   };
 
@@ -246,8 +246,8 @@ const MessageBubble = ({
     updatePosition();
     setIsVisible(true);
     
-    // Update position every 2 seconds for smooth synchronized movement
-    const positionInterval = setInterval(updatePosition, 2000);
+    // Update position every 1 second for smoother synchronized movement
+    const positionInterval = setInterval(updatePosition, 1000);
     
     return () => {
       clearInterval(positionInterval);
@@ -329,10 +329,10 @@ const MessageBubble = ({
         top: `${position.top}%`,
         left: `${position.left}%`,
         width: bubbleSize.width,
-        minWidth: '180px', // Increased minimum width
-        maxWidth: '500px', // Increased maximum width
+        minWidth: '120px', // Compact minimum width
+        maxWidth: '350px', // Reasonable maximum width
         transform: `scale(${bubbleSize.scale || 1})`,
-        transition: 'left 2s ease-out, opacity 0.3s ease, transform 0.3s ease',
+        transition: 'left 1s ease-out, opacity 0.3s ease, transform 0.3s ease',
         willChange: 'left, opacity, transform',
         zIndex: 100 + index, // High z-index to ensure visibility
         position: 'fixed' // Ensure fixed positioning for screen flow
@@ -345,19 +345,19 @@ const MessageBubble = ({
         {/* Vibey background overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
         
-        {/* Content container - increased padding for better readability */}
-        <div className="relative z-10 p-3">
+        {/* Content container - compact padding */}
+        <div className="relative z-10 p-2">
           
-          {/* Header with author and time - improved spacing */}
-          <div className="flex items-center justify-between mb-2">
+          {/* Header with author and time - compact spacing */}
+          <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-1">
-              <div className="w-5 h-5 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shadow-sm">
-                <span className="text-sm font-bold text-white">
+              <div className="w-4 h-4 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shadow-sm">
+                <span className="text-xs font-bold text-white">
                   {(message.author || 'Anonymous').charAt(0).toUpperCase()}
                 </span>
               </div>
               <span 
-                className={`text-sm font-medium text-text-primary ${
+                className={`text-xs font-medium text-text-primary ${
                   message.authorData?.isSignedIn ? 'cursor-pointer hover:text-blue-400 transition-colors' : ''
                 }`}
                 onClick={(e) => {
@@ -371,13 +371,13 @@ const MessageBubble = ({
                 {message.author || 'Anonymous'}
               </span>
               {message.authorData?.isSignedIn && (
-                <span className="text-sm bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-2 py-1 rounded text-sm font-bold">
+                <span className="text-xs bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-1 py-0.5 rounded text-xs font-bold">
                   L{message.authorData.level || 1}
                 </span>
               )}
             </div>
             <div className="flex items-center gap-1">
-              <span className="text-sm text-text-secondary/60 font-mono">
+              <span className="text-xs text-text-secondary/60 font-mono">
                 {message.timestamp ? new Date(message.timestamp).toLocaleTimeString('en-US', {
                   hour12: true,
                   hour: 'numeric',
@@ -387,8 +387,8 @@ const MessageBubble = ({
             </div>
           </div>
 
-          {/* Message Content - better text sizing and spacing */}
-          <div className="text-base text-text-primary leading-relaxed mb-3" style={{
+          {/* Message Content - compact text sizing and spacing */}
+          <div className="text-sm text-text-primary leading-snug mb-2" style={{
             wordBreak: 'break-word',
             overflowWrap: 'break-word',
             maxWidth: '100%',
@@ -397,25 +397,25 @@ const MessageBubble = ({
             {renderMessageContent()}
           </div>
 
-          {/* Reaction bar - larger, easier to click, always visible */}
+          {/* Reaction bar - compact, easier to click */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               <button
-                className={`vibey-reaction-btn like-btn ${hasReacted.thumbsUp ? 'reacted-up' : 'unreacted'} px-3 py-2`}
+                className={`vibey-reaction-btn like-btn ${hasReacted.thumbsUp ? 'reacted-up' : 'unreacted'} px-2 py-1`}
                 onClick={handleThumbsUp}
                 title="Like this vibe"
               >
-                <span className="text-lg">👍</span>
-                <span className="text-sm font-mono ml-2">{message.reactions?.thumbsUp || 0}</span>
+                <span className="text-sm">👍</span>
+                <span className="text-xs font-mono ml-1">{message.reactions?.thumbsUp || 0}</span>
               </button>
               
               <button
-                className={`vibey-reaction-btn dislike-btn ${hasReacted.thumbsDown ? 'reacted-down' : 'unreacted'} px-3 py-2`}
+                className={`vibey-reaction-btn dislike-btn ${hasReacted.thumbsDown ? 'reacted-down' : 'unreacted'} px-2 py-1`}
                 onClick={handleThumbsDown}
                 title="Not feeling this vibe"
               >
-                <span className="text-lg">👎</span>
-                <span className="text-sm font-mono ml-2">{message.reactions?.thumbsDown || 0}</span>
+                <span className="text-sm">👎</span>
+                <span className="text-xs font-mono ml-1">{message.reactions?.thumbsDown || 0}</span>
               </button>
             </div>
             
@@ -428,10 +428,10 @@ const MessageBubble = ({
                     onReportClick(message.authorData.username);
                   }
                 }}
-                className="text-text-secondary hover:text-red-400 transition-colors p-2"
+                className="text-text-secondary hover:text-red-400 transition-colors p-1"
                 title="Report user"
               >
-                <span className="text-sm">!</span>
+                <span className="text-xs">!</span>
               </button>
             )}
           </div>
