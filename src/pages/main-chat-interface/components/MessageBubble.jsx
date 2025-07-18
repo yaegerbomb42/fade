@@ -46,6 +46,40 @@ const MessageBubble = ({
   const [animationDuration, setAnimationDuration] = useState('35s'); // Slower default duration
   const [hasReacted, setHasReacted] = useState({ thumbsUp: false, thumbsDown: false });
   const [flowSpeed, setFlowSpeed] = useState('message-flow');
+  const [bubbleSize, setBubbleSize] = useState({ width: 'auto', height: 'auto' });
+
+  // Calculate dynamic bubble size based on content
+  const calculateBubbleSize = (text) => {
+    const textLength = text.length;
+    const lineCount = text.split('\n').length;
+    
+    // Base sizes
+    const minWidth = 120; // Minimum width in pixels
+    const maxWidth = 400; // Maximum width in pixels
+    const baseHeight = 40; // Base height for single line
+    
+    // Calculate width based on text length
+    const charBasedWidth = Math.min(maxWidth, minWidth + (textLength * 8));
+    
+    // Calculate height based on line count and estimated wrapping
+    const estimatedLinesFromLength = Math.ceil(textLength / 30); // Rough estimate of wrapping
+    const totalLines = Math.max(lineCount, estimatedLinesFromLength);
+    const calculatedHeight = baseHeight + ((totalLines - 1) * 20);
+    
+    return {
+      width: `${charBasedWidth}px`,
+      height: `${calculatedHeight}px`,
+      scale: Math.min(1.2, 0.8 + (textLength / 160)) // Scale factor based on content length
+    };
+  };
+
+  // Update bubble size when message changes
+  useEffect(() => {
+    if (message && message.text) {
+      const size = calculateBubbleSize(message.text);
+      setBubbleSize(size);
+    }
+  }, [message.text]);
 
   // Parse @mentions in message text
   const parseMessageWithMentions = (text) => {
@@ -143,10 +177,20 @@ const MessageBubble = ({
     const clampedActivity = Math.min(Math.max(activityLevel, 1), 5);
     const minDuration = 15; // Minimum duration in seconds (faster)
     const maxDuration = 45; // Maximum duration in seconds (much slower for low activity)
+    
+    // Content-based speed adjustment
+    const messageLength = message.text ? message.text.length : 50;
+    const lengthMultiplier = 1 + (messageLength / 320); // Longer messages move slightly slower
+    
+    // Traffic-based speed adjustment
+    const trafficMultiplier = totalMessages > 0 ? 1 + (totalMessages / 20) : 1;
+    
     // Map activityLevel (1-5) to duration range inversely proportional to active messages count
-    const duration = maxDuration - ((clampedActivity - 1) / 4) * (maxDuration - minDuration);
-    setAnimationDuration(`${duration}s`);
-  }, [activityLevel]);
+    const baseDuration = maxDuration - ((clampedActivity - 1) / 4) * (maxDuration - minDuration);
+    const adjustedDuration = baseDuration * lengthMultiplier * Math.min(trafficMultiplier, 2);
+    
+    setAnimationDuration(`${Math.min(adjustedDuration, 60)}s`); // Cap at 60 seconds
+  }, [activityLevel, totalMessages, message.text]);
 
 
 
@@ -272,10 +316,14 @@ const MessageBubble = ({
 
   return (
     <div
-      className={`absolute w-56 pointer-events-auto ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'} message-bubble`}
+      className={`absolute pointer-events-auto ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'} message-bubble`}
       style={{
         top: `${position.top}%`,
         left: `${position.left}%`,
+        width: bubbleSize.width,
+        minWidth: '120px',
+        maxWidth: '400px',
+        transform: `scale(${bubbleSize.scale || 1})`,
         transition: message.isPersistent ? 'opacity 0.3s ease, transform 0.3s ease' : `left ${animationDuration} linear, opacity 0.3s ease, transform 0.3s ease`,
         willChange: message.isPersistent ? 'opacity, transform' : 'left, opacity, transform'
       }}
