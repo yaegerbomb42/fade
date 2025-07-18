@@ -71,8 +71,8 @@ const MainChatInterface = () => {
       const now = Date.now();
       const messageTime = msg.position?.spawnTime || new Date(msg.timestamp).getTime();
       const age = now - messageTime;
-      // Only persist messages that are less than 4 minutes old
-      return age < 240000;
+      // Only persist messages that are less than 2 minutes old
+      return age < 120000;
     }).map(msg => ({
       ...msg,
       persistedAt: Date.now() // Mark when it was stored
@@ -95,11 +95,11 @@ const MainChatInterface = () => {
         const persistedMessages = JSON.parse(stored);
         const now = Date.now();
         
-        // Filter out messages that are too old (more than 4 minutes)
+        // Filter out messages that are too old (more than 2 minutes)
         const validMessages = persistedMessages.filter(msg => {
           const messageTime = msg.position?.spawnTime || new Date(msg.timestamp).getTime();
           const age = now - messageTime;
-          return age < 240000;
+          return age < 120000;
         });
         
         // Calculate current positions for persisted messages
@@ -142,7 +142,7 @@ const MainChatInterface = () => {
     return localStorage.getItem('fade-guest-mode-confirmed') === 'true';
   });
   
-  const REGULAR_MESSAGE_FLOW_DURATION = 25000; // 25 seconds for regular messages
+  const REGULAR_MESSAGE_FLOW_DURATION = 15000; // 15 seconds for faster message flow
   const activityTimeWindow = 30 * 1000; // 30 seconds
   const currentUserId = useRef(getUserId());
   const presenceRef = useRef(null);
@@ -562,7 +562,17 @@ const MainChatInterface = () => {
       id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` // Generate local ID
     };
 
-    // Try to send to Firebase if available, otherwise add locally for testing
+    // Add message to UI immediately for instant feedback
+    const currentPosition = calculateSynchronizedPosition(messagePosition, newMessagePayload.timestamp);
+    const immediateMessage = {
+      ...newMessagePayload,
+      currentPosition: currentPosition,
+      isLocalMessage: true // Mark as local for tracking
+    };
+    
+    setMessages(prev => [...prev, immediateMessage]);
+
+    // Try to send to Firebase if available
     if (database) {
       const messagesRef = ref(database, `channels/${activeChannel.id.replace(/[.#$[\]]/g, '_')}/messages`);
       
@@ -581,18 +591,10 @@ const MainChatInterface = () => {
         }
       } catch (error) {
         console.error('Failed to send message to Firebase:', error);
-        // Fall through to local message creation
+        // Keep the local message since Firebase failed
       }
     } else {
-      // Firebase not available, create local message for testing
-      console.log('Firebase not available, creating local message for testing:', newMessagePayload.text.substring(0, 20) + '...');
-      
-      // Calculate current position for immediate display
-      const currentPosition = calculateSynchronizedPosition(messagePosition, newMessagePayload.timestamp);
-      newMessagePayload.currentPosition = currentPosition;
-      
-      // Add message locally
-      setMessages(prev => [...prev, newMessagePayload]);
+      console.log('Firebase not available, message added locally:', newMessagePayload.text.substring(0, 20) + '...');
     }
   }, [activeChannel, database, isSignedIn, user, updateUserStats]);
 
@@ -669,7 +671,7 @@ const MainChatInterface = () => {
     
     const now = Date.now();
     const messageAge = now - originalPosition.spawnTime;
-    const maxAge = 240000; // 4 minutes max age for messages
+    const maxAge = 20000; // 20 seconds max age for faster cycling
     
     // If message is too old, it should be off-screen
     if (messageAge > maxAge) {
@@ -677,7 +679,7 @@ const MainChatInterface = () => {
     }
     
     // Calculate progress through animation (0 = just spawned, 1 = fully traversed)
-    const animationDuration = 180000; // 3 minutes base duration for maximum stability
+    const animationDuration = 15000; // 15 seconds for faster, more dynamic flow
     const progress = Math.min(messageAge / animationDuration, 1);
     
     // Smooth easing for natural movement
@@ -827,9 +829,26 @@ const MainChatInterface = () => {
       }
 
       setMessages((prev) => {
+        // Check if this is a duplicate of a local message we already added
+        const existingLocalMessage = prev.find(msg => 
+          msg.isLocalMessage && 
+          msg.text === newMessage.text && 
+          msg.author === newMessage.author &&
+          Math.abs(msg.createdAt - newMessage.createdAt) < 5000 // Within 5 seconds
+        );
+        
+        if (existingLocalMessage) {
+          // Replace the local message with the Firebase version
+          return prev.map(msg => 
+            msg.id === existingLocalMessage.id ? newMessage : msg
+          );
+        }
+        
+        // Check for exact duplicates
         if (prev.find((msg) => msg.id === newMessage.id)) {
           return prev;
         }
+        
         // Update lastTimestamp and persist
         if (newMessage.createdAt && newMessage.createdAt > lastTimestamp) {
           lastTimestamp = newMessage.createdAt;
@@ -925,17 +944,17 @@ const MainChatInterface = () => {
       return updateSynchronizedPositions(withPositions);
     });
 
-    // Update synchronized positions every 2 seconds for smooth movement
+    // Update synchronized positions every 1 second for smoother movement
     const syncInterval = setInterval(() => {
       setMessages((prevMessages) => {
         return updateSynchronizedPositions(prevMessages);
       });
-    }, 2000);
+    }, 1000);
 
-    // Clean up expired messages every 10 seconds
+    // Clean up expired messages every 5 seconds
     const cleanupInterval = setInterval(() => {
       const now = Date.now();
-      const maxAge = 240000; // 4 minutes max age for very slow messages
+      const maxAge = 20000; // 20 seconds max age for faster cycling
       
       setMessages((prevMessages) => {
         return prevMessages.filter(msg => {
@@ -944,7 +963,7 @@ const MainChatInterface = () => {
           return age < maxAge;
         });
       });
-    }, 10000);
+    }, 5000);
 
     return () => {
       clearInterval(syncInterval);
