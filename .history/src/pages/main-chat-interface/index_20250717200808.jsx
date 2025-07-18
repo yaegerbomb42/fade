@@ -822,9 +822,6 @@ const MainChatInterface = () => {
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
-      {/* Import mobile responsive styles */}
-      <link rel="stylesheet" href="/src/styles/mobile-responsive.css" />
-
       {/* Animated Background */}
       <AnimatedBackground />
 

@@ -1,0 +1,17 @@
+/* Mobile responsive improvements */
+@media (max-width: 640px) {
+  .glass-panel {
+    padding: 1rem !important;
+  }
+  .message-bubble {
+    width: 90% !important;
+    font-size: 1.125rem !important;
+  }
+  .glass-button {
+    padding: 1rem 1.5rem !important;
+    font-size: 1.125rem !important;
+  }
+  textarea {
+    font-size: 1.125rem !important;
+  }
+}
