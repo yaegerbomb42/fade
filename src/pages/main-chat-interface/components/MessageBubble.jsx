@@ -24,17 +24,44 @@ const MessageBubble = ({
   
   // Server-based positioning for consistent placement across all users
   const [position, setPosition] = useState(() => {
-    // Always start from the right edge for flow animation
-    const lanes = 12; // Use 12 lanes like the highway system
-    const laneHeight = 75 / lanes; // 75% usable height
+    // Check if message has synchronized position data
+    if (message.currentPosition) {
+      return {
+        top: message.currentPosition.top,
+        left: message.currentPosition.left
+      };
+    }
+    
+    // If message has stored position, use it for synchronization
+    if (message.position && message.position.spawnTime) {
+      // Calculate current position based on spawn time
+      const now = Date.now();
+      const messageAge = now - message.position.spawnTime;
+      const animationDuration = 90000; // 90 seconds
+      const progress = Math.min(messageAge / animationDuration, 1);
+      
+      const startX = 105;
+      const endX = -30;
+      const easeOut = (t) => 1 - Math.pow(1 - t, 2.5);
+      const currentX = startX - (easeOut(progress) * (startX - endX));
+      
+      return {
+        top: message.position.top,
+        left: currentX
+      };
+    }
+    
+    // Fallback to lane-based positioning for new messages
+    const lanes = 12;
+    const laneHeight = 75 / lanes;
     const topMargin = 12.5;
     const lane = index % lanes;
     const baseTop = topMargin + (lane * laneHeight) + (laneHeight / 2);
-    const randomOffset = (Math.random() - 0.5) * 2; // Small random offset for lane variation
+    const randomOffset = (Math.random() - 0.5) * 2;
     
     return {
-      top: Math.max(15, Math.min(85, baseTop + randomOffset)), // Better bounds
-      left: 100, // Start from right edge of screen (100% = just at edge)
+      top: Math.max(15, Math.min(85, baseTop + randomOffset)),
+      left: 100,
     };
   });
   const [isVisible, setIsVisible] = useState(false);
@@ -42,29 +69,30 @@ const MessageBubble = ({
   const [hasReacted, setHasReacted] = useState({ thumbsUp: false, thumbsDown: false });
   const [flowSpeed, setFlowSpeed] = useState('message-flow');
   const [bubbleSize, setBubbleSize] = useState({ width: 'auto', height: 'auto' });
+  const [isPaused, setIsPaused] = useState(false); // Add pause state for better interaction
 
   // Calculate dynamic bubble size based on content
   const calculateBubbleSize = (text) => {
     const textLength = text.length;
     const lineCount = text.split('\n').length;
     
-    // Base sizes
-    const minWidth = 120; // Minimum width in pixels
-    const maxWidth = 400; // Maximum width in pixels
-    const baseHeight = 40; // Base height for single line
+    // Base sizes - increased for better readability
+    const minWidth = 180; // Increased minimum width for better readability
+    const maxWidth = 500; // Increased maximum width for longer messages
+    const baseHeight = 60; // Increased base height for better text spacing
     
-    // Calculate width based on text length
-    const charBasedWidth = Math.min(maxWidth, minWidth + (textLength * 8));
+    // Calculate width based on text length - more generous sizing
+    const charBasedWidth = Math.min(maxWidth, minWidth + (textLength * 10));
     
     // Calculate height based on line count and estimated wrapping
-    const estimatedLinesFromLength = Math.ceil(textLength / 30); // Rough estimate of wrapping
+    const estimatedLinesFromLength = Math.ceil(textLength / 25); // Better wrapping estimate
     const totalLines = Math.max(lineCount, estimatedLinesFromLength);
-    const calculatedHeight = baseHeight + ((totalLines - 1) * 20);
+    const calculatedHeight = baseHeight + ((totalLines - 1) * 24); // Better line spacing
     
     return {
       width: `${charBasedWidth}px`,
       height: `${calculatedHeight}px`,
-      scale: Math.min(1.2, 0.8 + (textLength / 160)) // Scale factor based on content length
+      scale: Math.min(1.4, 0.9 + (textLength / 140)) // Increased scale for better visibility
     };
   };
 
@@ -164,38 +192,40 @@ const MessageBubble = ({
     ? userGradients[index % userGradients.length]
     : gradients[index % gradients.length];
 
-  // Calculate animation duration based on activity level with much slower speeds for visibility
+  // Calculate animation duration based on activity level with much slower speeds for visibility and stability
   // activityLevel is expected to be a number between 1 and 5
   // Higher activityLevel means faster animation (shorter duration)
   useEffect(() => {
     // Clamp activityLevel between 1 and 5
     const clampedActivity = Math.min(Math.max(activityLevel, 1), 5);
-    const minDuration = 20; // Slower minimum duration for better visibility
-    const maxDuration = 45; // Much slower maximum duration
+    const minDuration = 45; // Much slower minimum duration for interaction stability
+    const maxDuration = 90; // Very slow maximum duration for readability
     
     // Content-based speed adjustment (longer messages slightly slower)
     const messageLength = message.text ? message.text.length : 50;
-    const lengthMultiplier = 1 + (messageLength / 500); // Reduced impact for readability
+    const lengthMultiplier = 1 + (messageLength / 300); // Reduced impact for better stability
     
     // Traffic-based speed adjustment (more messages = faster flow)
-    const trafficMultiplier = totalMessages > 0 ? 1 + (totalMessages / 40) : 1;
+    const trafficMultiplier = totalMessages > 0 ? 1 + (totalMessages / 60) : 1;
     
     // Map activityLevel (1-5) to duration range
     const baseDuration = maxDuration - ((clampedActivity - 1) / 4) * (maxDuration - minDuration);
-    const adjustedDuration = baseDuration * lengthMultiplier * Math.min(trafficMultiplier, 1.5);
+    const adjustedDuration = baseDuration * lengthMultiplier * Math.min(trafficMultiplier, 1.3);
     
-    setAnimationDuration(`${Math.min(adjustedDuration, 60)}s`); // Cap at 60 seconds
+    setAnimationDuration(`${Math.min(adjustedDuration, 120)}s`); // Cap at 120 seconds for stability
   }, [activityLevel, totalMessages, message.text]);
 
 
 
   useEffect(() => {
-    // For persistent messages, don't animate - just use the calculated position
-    if (message.isPersistent && message.position) {
-      setPosition({
-        top: message.position.top,
-        left: message.position.left
-      });
+    // For persistent messages or messages with synchronized positions, don't animate - use calculated position
+    if (message.isPersistent || (message.position && message.position.spawnTime)) {
+      if (message.currentPosition) {
+        setPosition({
+          top: message.currentPosition.top,
+          left: message.currentPosition.left
+        });
+      }
       setIsVisible(true);
       return;
     }
@@ -203,12 +233,12 @@ const MessageBubble = ({
     // Debug logging
     console.log('MessageBubble animation starting for:', message.text?.substring(0, 20) + '...');
 
-    // Immediate show for better responsiveness
+    // For new messages without position data, start fresh animation
     setIsVisible(true);
 
-    // Start animation with more visible flow
+    // Start animation with more stable flow and longer visibility
     const startLeft = 100; // Start from right edge (just off-screen)
-    const finalLeft = -20; // End at left side (less off-screen for better visibility)
+    const finalLeft = -30; // End position - less aggressive off-screen for better visibility
     
     // Force position to start from right side
     setPosition(prev => {
@@ -219,7 +249,7 @@ const MessageBubble = ({
       };
     });
 
-    // Start the right-to-left animation with a longer delay to ensure visibility
+    // Start the right-to-left animation with a much longer delay for better interaction
     const moveTimer = setTimeout(() => {
       setPosition(prev => {
         console.log('Starting animation to left:', { ...prev, left: finalLeft });
@@ -228,7 +258,7 @@ const MessageBubble = ({
           left: finalLeft
         };
       });
-    }, 500); // Longer delay to ensure users can see the message appear
+    }, 1500); // Much longer delay for user interaction and readability
 
     return () => {
       clearTimeout(moveTimer);
@@ -320,35 +350,39 @@ const MessageBubble = ({
         top: `${position.top}%`,
         left: `${position.left}%`,
         width: bubbleSize.width,
-        minWidth: '120px',
-        maxWidth: '400px',
+        minWidth: '180px', // Increased minimum width
+        maxWidth: '500px', // Increased maximum width
         transform: `scale(${bubbleSize.scale || 1})`,
         transition: message.isPersistent 
           ? 'opacity 0.3s ease, transform 0.3s ease' 
-          : `left ${animationDuration} linear, opacity 0.3s ease, transform 0.3s ease`,
+          : isPaused 
+            ? 'opacity 0.3s ease, transform 0.3s ease' // Pause animation on hover
+            : `left ${animationDuration} linear, opacity 0.3s ease, transform 0.3s ease`,
         willChange: 'left, opacity, transform',
         zIndex: 100 + index, // High z-index to ensure visibility
         position: 'fixed' // Ensure fixed positioning for screen flow
       }}
+      onMouseEnter={() => setIsPaused(true)} // Pause animation on hover
+      onMouseLeave={() => setIsPaused(false)} // Resume animation when not hovering
     >
       <div className={`vibey-card bg-gradient-to-br ${bubbleGradient} border border-glass-border/30 hover:border-glass-highlight/50 transition-all duration-300 group relative overflow-hidden`}>
         
         {/* Vibey background overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
         
-        {/* Content container - reduced padding for compactness */}
-        <div className="relative z-10 p-2">
+        {/* Content container - increased padding for better readability */}
+        <div className="relative z-10 p-3">
           
-          {/* Header with author and time - more compact */}
-          <div className="flex items-center justify-between mb-1">
+          {/* Header with author and time - improved spacing */}
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1">
-              <div className="w-4 h-4 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shadow-sm">
-                <span className="text-xs font-bold text-white">
+              <div className="w-5 h-5 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shadow-sm">
+                <span className="text-sm font-bold text-white">
                   {(message.author || 'Anonymous').charAt(0).toUpperCase()}
                 </span>
               </div>
               <span 
-                className={`text-xs font-medium text-text-primary ${
+                className={`text-sm font-medium text-text-primary ${
                   message.authorData?.isSignedIn ? 'cursor-pointer hover:text-blue-400 transition-colors' : ''
                 }`}
                 onClick={(e) => {
@@ -362,13 +396,13 @@ const MessageBubble = ({
                 {message.author || 'Anonymous'}
               </span>
               {message.authorData?.isSignedIn && (
-                <span className="text-xs bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-1 rounded text-xs font-bold">
+                <span className="text-sm bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-2 py-1 rounded text-sm font-bold">
                   L{message.authorData.level || 1}
                 </span>
               )}
             </div>
             <div className="flex items-center gap-1">
-              <span className="text-xs text-text-secondary/60 font-mono">
+              <span className="text-sm text-text-secondary/60 font-mono">
                 {message.timestamp ? new Date(message.timestamp).toLocaleTimeString('en-US', {
                   hour12: true,
                   hour: 'numeric',
@@ -378,8 +412,8 @@ const MessageBubble = ({
             </div>
           </div>
 
-          {/* Message Content - responsive wrapping with better margins */}
-          <div className="text-sm text-text-primary leading-snug mb-2" style={{
+          {/* Message Content - better text sizing and spacing */}
+          <div className="text-base text-text-primary leading-relaxed mb-3" style={{
             wordBreak: 'break-word',
             overflowWrap: 'break-word',
             maxWidth: '100%',
@@ -388,25 +422,25 @@ const MessageBubble = ({
             {renderMessageContent()}
           </div>
 
-          {/* Reaction bar - easier to click, always visible */}
+          {/* Reaction bar - larger, easier to click, always visible */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
               <button
-                className={`vibey-reaction-btn like-btn ${hasReacted.thumbsUp ? 'reacted-up' : 'unreacted'}`}
+                className={`vibey-reaction-btn like-btn ${hasReacted.thumbsUp ? 'reacted-up' : 'unreacted'} px-3 py-2`}
                 onClick={handleThumbsUp}
                 title="Like this vibe"
               >
-                <span className="text-sm">👍</span>
-                <span className="text-xs font-mono ml-1">{message.reactions?.thumbsUp || 0}</span>
+                <span className="text-lg">👍</span>
+                <span className="text-sm font-mono ml-2">{message.reactions?.thumbsUp || 0}</span>
               </button>
               
               <button
-                className={`vibey-reaction-btn dislike-btn ${hasReacted.thumbsDown ? 'reacted-down' : 'unreacted'}`}
+                className={`vibey-reaction-btn dislike-btn ${hasReacted.thumbsDown ? 'reacted-down' : 'unreacted'} px-3 py-2`}
                 onClick={handleThumbsDown}
                 title="Not feeling this vibe"
               >
-                <span className="text-sm">👎</span>
-                <span className="text-xs font-mono ml-1">{message.reactions?.thumbsDown || 0}</span>
+                <span className="text-lg">👎</span>
+                <span className="text-sm font-mono ml-2">{message.reactions?.thumbsDown || 0}</span>
               </button>
             </div>
             
@@ -419,10 +453,10 @@ const MessageBubble = ({
                     onReportClick(message.authorData.username);
                   }
                 }}
-                className="text-text-secondary hover:text-red-400 transition-colors p-1"
+                className="text-text-secondary hover:text-red-400 transition-colors p-2"
                 title="Report user"
               >
-                <span className="text-xs">!</span>
+                <span className="text-sm">!</span>
               </button>
             )}
           </div>
