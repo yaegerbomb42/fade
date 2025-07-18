@@ -10,8 +10,40 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
+  const [passwordStrength, setPasswordStrength] = useState({ score: 0, passed: [], failed: [] });
+  const [showPassword, setShowPassword] = useState(false);
   
   const { signIn, signUp } = useAuth();
+
+  // Password strength checker
+  const checkPasswordStrength = (password) => {
+    const checks = [
+      { test: /.{8,}/, message: 'At least 8 characters' },
+      { test: /[A-Z]/, message: 'Uppercase letter' },
+      { test: /[a-z]/, message: 'Lowercase letter' },
+      { test: /[0-9]/, message: 'Number' },
+      { test: /[^A-Za-z0-9]/, message: 'Special character' }
+    ];
+    
+    const passed = checks.filter(check => check.test.test(password));
+    const failed = checks.filter(check => !check.test.test(password));
+    
+    return {
+      score: passed.length,
+      passed: passed.map(check => check.message),
+      failed: failed.map(check => check.message)
+    };
+  };
+
+  // Update password strength when password changes
+  useEffect(() => {
+    if (mode === 'signup' && password) {
+      const strength = checkPasswordStrength(password);
+      setPasswordStrength(strength);
+    } else {
+      setPasswordStrength({ score: 0, passed: [], failed: [] });
+    }
+  }, [password, mode]);
 
   // Reset form when modal opens/closes or mode changes
   useEffect(() => {
@@ -23,6 +55,8 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
       setError('');
       setLoading(false);
       setLoadingMessage('');
+      setPasswordStrength({ score: 0, passed: [], failed: [] });
+      setShowPassword(false);
     }
   }, [isOpen, initialMode]);
 
@@ -33,6 +67,33 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
     setError('');
     setLoading(true);
 
+    // Enhanced validation
+    if (mode === 'signup') {
+      if (password !== confirmPassword) {
+        setError('Passwords do not match');
+        setLoading(false);
+        return;
+      }
+      
+      if (passwordStrength.score < 3) {
+        setError('Password must meet at least 3 security requirements');
+        setLoading(false);
+        return;
+      }
+      
+      if (username.length < 3) {
+        setError('Username must be at least 3 characters long');
+        setLoading(false);
+        return;
+      }
+      
+      if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+        setError('Username can only contain letters, numbers, underscores, and hyphens');
+        setLoading(false);
+        return;
+      }
+    }
+
     // Set a maximum loading time to prevent infinite loading
     const loadingTimeout = setTimeout(() => {
       setLoading(false);
@@ -42,15 +103,13 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
 
     try {
       if (mode === 'signup') {
-        if (password !== confirmPassword) {
-          throw new Error('Passwords do not match');
-        }
         setLoadingMessage('Creating your account...');
         
         // Add a small delay to show the loading message
         await new Promise(resolve => setTimeout(resolve, 100));
         
         await signUp(username, password);
+        setLoadingMessage('Account created successfully!');
       } else {
         setLoadingMessage('Signing you in...');
         
@@ -58,6 +117,7 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
         await new Promise(resolve => setTimeout(resolve, 100));
         
         await signIn(username, password);
+        setLoadingMessage('Welcome back!');
       }
       
       // Clear the timeout since operation completed
@@ -69,15 +129,28 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
       setConfirmPassword('');
       setLoadingMessage('');
       
-      // Close modal
-      onClose();
+      // Close modal after short delay
+      setTimeout(() => {
+        onClose();
+      }, 1000);
     } catch (err) {
       clearTimeout(loadingTimeout);
       setLoadingMessage('');
-      setError(err.message || 'An error occurred during authentication');
+      
+      // Enhanced error messages
+      let errorMessage = err.message || 'An error occurred during authentication';
+      
+      if (errorMessage.includes('username-already-exists')) {
+        errorMessage = 'This username is already taken. Please choose another.';
+      } else if (errorMessage.includes('invalid-credentials')) {
+        errorMessage = 'Invalid username or password. Please try again.';
+      } else if (errorMessage.includes('network')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
-      setLoadingMessage('');
     }
   };
 
@@ -121,22 +194,82 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
                 maxLength={20}
                 pattern="[a-zA-Z0-9_-]+"
                 title="Username can only contain letters, numbers, underscores, and hyphens"
+                autoComplete="username"
               />
+              {mode === 'signup' && username && (
+                <div className="mt-1 text-xs">
+                  {username.length < 3 ? (
+                    <span className="text-red-400">Username too short (min 3 characters)</span>
+                  ) : !/^[a-zA-Z0-9_-]+$/.test(username) ? (
+                    <span className="text-red-400">Only letters, numbers, _, and - allowed</span>
+                  ) : (
+                    <span className="text-green-400">✓ Valid username</span>
+                  )}
+                </div>
+              )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-text-primary mb-1">
                 Password
               </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 glass-panel bg-glass-surface/80 border-glass-border text-text-primary placeholder-text-secondary focus:outline-none focus:border-primary/50 transition-all rounded-lg text-sm"
-                placeholder="Enter your password"
-                required
-                minLength={6}
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-3 py-2 pr-10 glass-panel bg-glass-surface/80 border-glass-border text-text-primary placeholder-text-secondary focus:outline-none focus:border-primary/50 transition-all rounded-lg text-sm"
+                  placeholder="Enter your password"
+                  required
+                  minLength={6}
+                  autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-text-secondary hover:text-text-primary transition-colors"
+                >
+                  <Icon name={showPassword ? "EyeOff" : "Eye"} className="w-4 h-4" />
+                </button>
+              </div>
+              
+              {/* Password strength indicator for signup */}
+              {mode === 'signup' && password && (
+                <div className="mt-2 space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <div className="flex-1 h-1 bg-glass-surface rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full transition-all duration-300 ${
+                          passwordStrength.score <= 2 ? 'bg-red-500' :
+                          passwordStrength.score <= 4 ? 'bg-yellow-500' :
+                          'bg-green-500'
+                        }`}
+                        style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
+                      />
+                    </div>
+                    <span className={`text-xs font-medium ${
+                      passwordStrength.score <= 2 ? 'text-red-400' :
+                      passwordStrength.score <= 4 ? 'text-yellow-400' :
+                      'text-green-400'
+                    }`}>
+                      {passwordStrength.score <= 2 ? 'Weak' :
+                       passwordStrength.score <= 4 ? 'Good' :
+                       'Strong'}
+                    </span>
+                  </div>
+                  
+                  {passwordStrength.failed.length > 0 && (
+                    <div className="text-xs text-text-secondary">
+                      <span>Add: </span>
+                      {passwordStrength.failed.map((req, index) => (
+                        <span key={req} className="text-red-400">
+                          {req}{index < passwordStrength.failed.length - 1 ? ', ' : ''}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {mode === 'signup' && (
@@ -152,7 +285,17 @@ const AuthModal = ({ isOpen, onClose, mode: initialMode = 'signin' }) => {
                   placeholder="Confirm your password"
                   required
                   minLength={6}
+                  autoComplete="new-password"
                 />
+                {confirmPassword && (
+                  <div className="mt-1 text-xs">
+                    {password === confirmPassword ? (
+                      <span className="text-green-400">✓ Passwords match</span>
+                    ) : (
+                      <span className="text-red-400">Passwords don't match</span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

@@ -444,11 +444,17 @@ const MainChatInterface = () => {
     // Store this message timestamp to prevent duplicates
     localStorage.setItem(lastSentKey, now.toString());
 
-    // Generate server-based position for consistent placement across all users
+    // Generate proper position for immediate display
+    const lanes = 12;
+    const laneHeight = 75 / lanes; // 75% usable height
+    const topMargin = 12.5;
+    const lane = Math.floor(Math.random() * lanes);
+    const laneCenter = topMargin + lane * laneHeight + laneHeight / 2;
+    const randomOffset = (Math.random() - 0.5) * 2; // Small random offset
+    
     const messagePosition = {
-      lane: Math.floor(Math.random() * 6), // 0-5 lanes
-      verticalOffset: Math.random() * 8 - 4, // -4 to +4 offset
-      horizontalStart: 100 + Math.random() * 10 // 100-110% start position
+      top: Math.max(15, Math.min(85, laneCenter + randomOffset)),
+      left: 105 // Start from right side
     };
 
     // Include author data for signed-in users
@@ -732,75 +738,53 @@ const MainChatInterface = () => {
     };
   }, [activeChannel?.id, database]);
 
-  // Implement improved message flow with highway system and overlap prevention
+  // Simplified message flow - ensure immediate right-to-left animation
   useEffect(() => {
     if (!activeChannel?.id) return;
 
-    // Function to calculate message position with overlap prevention
-    const calculateMessagePositions = (msgs) => {
+    // Function to assign lane positions for new messages only
+    const assignLaneToNewMessages = (msgs) => {
       const lanes = 12;
       const laneHeight = 75 / lanes; // 75% usable height
       const topMargin = 12.5;
-      const laneOccupancy = Array(lanes).fill(0); // Track last message end time per lane
 
-      const now = Date.now();
-      const flowDuration = 25000; // 25 seconds for message flow
-
-      return msgs.map((msg) => {
-        const messageTime = new Date(msg.timestamp).getTime();
-        const age = now - messageTime;
-        const progress = Math.min(Math.max(0, age / flowDuration), 1);
-
-        // Find lane with earliest availability
-        let lane = 0;
-        let minOccupancy = laneOccupancy[0];
-        for (let i = 1; i < lanes; i++) {
-          if (laneOccupancy[i] < minOccupancy) {
-            lane = i;
-            minOccupancy = laneOccupancy[i];
-          }
+      return msgs.map((msg, index) => {
+        // Only assign position if message doesn't have one
+        if (!msg.position) {
+          const lane = index % lanes; // Simple lane assignment
+          const laneCenter = topMargin + lane * laneHeight + laneHeight / 2;
+          const randomOffset = (Math.random() - 0.5) * 2; // Small random offset
+          
+          return {
+            ...msg,
+            position: { 
+              top: Math.max(15, Math.min(85, laneCenter + randomOffset)), 
+              left: 105 // Start from right side
+            },
+          };
         }
-
-        // Reserve lane occupancy for this message duration
-        laneOccupancy[lane] = age + flowDuration;
-
-        // Calculate vertical position
-        const laneCenter = topMargin + lane * laneHeight + laneHeight / 2;
-
-        // Calculate horizontal position from right to left with easing
-        const startX = 110;
-        const endX = -15;
-        const easeOut = (t) => 1 - Math.pow(1 - t, 2.5);
-        const left = startX - easeOut(progress) * (startX - endX);
-
-        // Calculate animation speed based on active messages count
-        const speedMultiplier = 1 + (msgs.length / 10);
-        const animationDuration = flowDuration / speedMultiplier;
-
-        return {
-          ...msg,
-          position: { top: laneCenter, left },
-          lane,
-          progress,
-          animationDuration,
-          isExpired: progress >= 1,
-        };
+        return msg;
       });
     };
 
-    // Update messages with positions
+    // Assign positions to messages that don't have them
     setMessages((prevMessages) => {
-      const updatedMessages = calculateMessagePositions(prevMessages).filter(msg => !msg.isExpired);
-      return updatedMessages;
+      return assignLaneToNewMessages(prevMessages);
     });
 
-    // Set interval to update positions every second
+    // Clean up expired messages every 5 seconds instead of every second
     const interval = setInterval(() => {
+      const now = Date.now();
+      const maxAge = 60000; // 60 seconds max age
+      
       setMessages((prevMessages) => {
-        const updatedMessages = calculateMessagePositions(prevMessages).filter(msg => !msg.isExpired);
-        return updatedMessages;
+        return prevMessages.filter(msg => {
+          const messageTime = new Date(msg.timestamp).getTime();
+          const age = now - messageTime;
+          return age < maxAge;
+        });
       });
-    }, 1000);
+    }, 5000);
 
     return () => clearInterval(interval);
   }, [activeChannel?.id]);

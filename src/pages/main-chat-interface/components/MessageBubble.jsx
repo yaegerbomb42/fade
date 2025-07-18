@@ -24,28 +24,57 @@ const MessageBubble = ({
   
   // Server-based positioning for consistent placement across all users
   const [position, setPosition] = useState(() => {
-    // Use the collision-detected position from the parent
-    if (message.position) {
-      const { top, left } = message.position;
-      return { top, left };
-    }
-    
-    // Fallback for messages without positioning
-    const lanes = 6;
-    const laneHeight = 70 / lanes;
+    // Always start from the right edge for flow animation
+    const lanes = 12; // Use 12 lanes like the highway system
+    const laneHeight = 75 / lanes; // 75% usable height
+    const topMargin = 12.5;
     const lane = index % lanes;
-    const baseTop = 20 + (lane * laneHeight);
-    const randomOffset = (Math.random() - 0.5) * 6;
+    const baseTop = topMargin + (lane * laneHeight) + (laneHeight / 2);
+    const randomOffset = (Math.random() - 0.5) * 2; // Small random offset for lane variation
     
     return {
-      top: Math.max(25, Math.min(85, baseTop + randomOffset)),
-      left: 100 + Math.random() * 10,
+      top: Math.max(15, Math.min(85, baseTop + randomOffset)), // Better bounds
+      left: 100, // Start from right edge of screen (100% = just at edge)
     };
   });
   const [isVisible, setIsVisible] = useState(false);
   const [animationDuration, setAnimationDuration] = useState('35s'); // Slower default duration
   const [hasReacted, setHasReacted] = useState({ thumbsUp: false, thumbsDown: false });
   const [flowSpeed, setFlowSpeed] = useState('message-flow');
+  const [bubbleSize, setBubbleSize] = useState({ width: 'auto', height: 'auto' });
+
+  // Calculate dynamic bubble size based on content
+  const calculateBubbleSize = (text) => {
+    const textLength = text.length;
+    const lineCount = text.split('\n').length;
+    
+    // Base sizes
+    const minWidth = 120; // Minimum width in pixels
+    const maxWidth = 400; // Maximum width in pixels
+    const baseHeight = 40; // Base height for single line
+    
+    // Calculate width based on text length
+    const charBasedWidth = Math.min(maxWidth, minWidth + (textLength * 8));
+    
+    // Calculate height based on line count and estimated wrapping
+    const estimatedLinesFromLength = Math.ceil(textLength / 30); // Rough estimate of wrapping
+    const totalLines = Math.max(lineCount, estimatedLinesFromLength);
+    const calculatedHeight = baseHeight + ((totalLines - 1) * 20);
+    
+    return {
+      width: `${charBasedWidth}px`,
+      height: `${calculatedHeight}px`,
+      scale: Math.min(1.2, 0.8 + (textLength / 160)) // Scale factor based on content length
+    };
+  };
+
+  // Update bubble size when message changes
+  useEffect(() => {
+    if (message && message.text) {
+      const size = calculateBubbleSize(message.text);
+      setBubbleSize(size);
+    }
+  }, [message.text]);
 
   // Parse @mentions in message text
   const parseMessageWithMentions = (text) => {
@@ -135,18 +164,28 @@ const MessageBubble = ({
     ? userGradients[index % userGradients.length]
     : gradients[index % gradients.length];
 
-  // Calculate animation duration based on activity level with slower base speeds
+  // Calculate animation duration based on activity level with much slower speeds for visibility
   // activityLevel is expected to be a number between 1 and 5
   // Higher activityLevel means faster animation (shorter duration)
   useEffect(() => {
     // Clamp activityLevel between 1 and 5
     const clampedActivity = Math.min(Math.max(activityLevel, 1), 5);
-    const minDuration = 15; // Minimum duration in seconds (faster)
-    const maxDuration = 45; // Maximum duration in seconds (much slower for low activity)
-    // Map activityLevel (1-5) to duration range inversely proportional to active messages count
-    const duration = maxDuration - ((clampedActivity - 1) / 4) * (maxDuration - minDuration);
-    setAnimationDuration(`${duration}s`);
-  }, [activityLevel]);
+    const minDuration = 20; // Slower minimum duration for better visibility
+    const maxDuration = 45; // Much slower maximum duration
+    
+    // Content-based speed adjustment (longer messages slightly slower)
+    const messageLength = message.text ? message.text.length : 50;
+    const lengthMultiplier = 1 + (messageLength / 500); // Reduced impact for readability
+    
+    // Traffic-based speed adjustment (more messages = faster flow)
+    const trafficMultiplier = totalMessages > 0 ? 1 + (totalMessages / 40) : 1;
+    
+    // Map activityLevel (1-5) to duration range
+    const baseDuration = maxDuration - ((clampedActivity - 1) / 4) * (maxDuration - minDuration);
+    const adjustedDuration = baseDuration * lengthMultiplier * Math.min(trafficMultiplier, 1.5);
+    
+    setAnimationDuration(`${Math.min(adjustedDuration, 60)}s`); // Cap at 60 seconds
+  }, [activityLevel, totalMessages, message.text]);
 
 
 
@@ -161,33 +200,37 @@ const MessageBubble = ({
       return;
     }
 
-    // Synchronized show timing based on server timestamp for regular messages
-    const messageCreatedAt = message.createdAt || new Date(message.timestamp).getTime();
-    const now = Date.now();
-    const syncDelay = Math.max(0, messageCreatedAt - now + 200); // 200ms sync buffer
-    
-    // Show bubble with synchronized timing across all users
-    const showTimer = setTimeout(() => {
-      setIsVisible(true);
-    }, syncDelay);
+    // Debug logging
+    console.log('MessageBubble animation starting for:', message.text?.substring(0, 20) + '...');
 
-    // Start movement with same synchronized timing for regular messages
+    // Immediate show for better responsiveness
+    setIsVisible(true);
+
+    // Start animation with more visible flow
+    const startLeft = 100; // Start from right edge (just off-screen)
+    const finalLeft = -20; // End at left side (less off-screen for better visibility)
+    
+    // Force position to start from right side
+    setPosition(prev => {
+      console.log('Setting initial position:', { ...prev, left: startLeft });
+      return {
+        ...prev,
+        left: startLeft
+      };
+    });
+
+    // Start the right-to-left animation with a longer delay to ensure visibility
     const moveTimer = setTimeout(() => {
-      const finalLeft = -30; // Ensure complete exit off left side
       setPosition(prev => {
-        const newPosition = { ...prev, left: finalLeft };
-        
-        // Update parent tracking if callback provided
-        if (message.onPositionUpdate) {
-          message.onPositionUpdate(message.id, finalLeft);
-        }
-        
-        return newPosition;
+        console.log('Starting animation to left:', { ...prev, left: finalLeft });
+        return {
+          ...prev,
+          left: finalLeft
+        };
       });
-    }, syncDelay + 100);
+    }, 500); // Longer delay to ensure users can see the message appear
 
     return () => {
-      clearTimeout(showTimer);
       clearTimeout(moveTimer);
     };
   }, [message]);
@@ -272,12 +315,20 @@ const MessageBubble = ({
 
   return (
     <div
-      className={`absolute w-56 pointer-events-auto ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'} message-bubble`}
+      className={`absolute pointer-events-auto message-bubble ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
       style={{
         top: `${position.top}%`,
         left: `${position.left}%`,
-        transition: message.isPersistent ? 'opacity 0.3s ease, transform 0.3s ease' : `left ${animationDuration} linear, opacity 0.3s ease, transform 0.3s ease`,
-        willChange: message.isPersistent ? 'opacity, transform' : 'left, opacity, transform'
+        width: bubbleSize.width,
+        minWidth: '120px',
+        maxWidth: '400px',
+        transform: `scale(${bubbleSize.scale || 1})`,
+        transition: message.isPersistent 
+          ? 'opacity 0.3s ease, transform 0.3s ease' 
+          : `left ${animationDuration} linear, opacity 0.3s ease, transform 0.3s ease`,
+        willChange: 'left, opacity, transform',
+        zIndex: 100 + index, // High z-index to ensure visibility
+        position: 'fixed' // Ensure fixed positioning for screen flow
       }}
     >
       <div className={`vibey-card bg-gradient-to-br ${bubbleGradient} border border-glass-border/30 hover:border-glass-highlight/50 transition-all duration-300 group relative overflow-hidden`}>

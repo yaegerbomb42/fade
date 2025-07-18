@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Icon from '../AppIcon';
 import { getUserId } from '../../utils/userIdentity';
 
@@ -78,36 +78,6 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
     setTypingTimeout(timeout);
   };
 
-  // Improve mobile usability: increase textarea touch target and keyboard handling
-  useEffect(() => {
-    if (!messageInputRef.current) return;
-
-    const textarea = messageInputRef.current;
-
-    // Increase padding for easier touch on mobile
-    if (window.innerWidth <= 640) {
-      textarea.style.padding = '1rem 1rem';
-      textarea.style.fontSize = '1.125rem'; // Larger font for readability
-    } else {
-      textarea.style.padding = '';
-      textarea.style.fontSize = '';
-    }
-
-    // Handle keyboard enter key for sending message on mobile
-    const handleKeyDown = (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        handleSendMessage(e);
-      }
-    };
-
-    textarea.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      textarea.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [handleSendMessage]);
-
   const emojiHotbar = [
     '😀', '😂', '🥰', '😎', '🤔', '😮', '😍', '🔥', '💯', '👍', 
     '👎', '❤️', '💔', '😭', '😡', '🤯', '🙄', '😴', '👀'
@@ -158,7 +128,7 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
     startCooldownTimer(2);
   };
 
-  const handleSendMessage = (e) => {
+  const handleSendMessage = useCallback((e) => {
     e.preventDefault();
     setErrorMessage('');
     if (!message.trim() || !nickname.trim() || !activeChannel) {
@@ -196,7 +166,37 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
       console.error('Error sending message:', error);
       setErrorMessage('Failed to send message. Please try again.');
     }
-  };
+  }, [message, nickname, activeChannel, cooldownTime, isReloading, onSendMessage, onTypingChange, typingTimeout]);
+
+  // Improve mobile usability: increase textarea touch target and keyboard handling
+  useEffect(() => {
+    if (!messageInputRef.current) return;
+
+    const textarea = messageInputRef.current;
+
+    // Increase padding for easier touch on mobile
+    if (window.innerWidth <= 640) {
+      textarea.style.padding = '1rem 1rem';
+      textarea.style.fontSize = '1.125rem'; // Larger font for readability
+    } else {
+      textarea.style.padding = '';
+      textarea.style.fontSize = '';
+    }
+
+    // Handle keyboard enter key for sending message on mobile
+    const handleKeyDown = (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSendMessage(e);
+      }
+    };
+
+    textarea.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      textarea.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleSendMessage]);
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
