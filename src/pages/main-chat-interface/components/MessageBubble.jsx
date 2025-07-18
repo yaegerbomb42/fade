@@ -30,16 +30,17 @@ const MessageBubble = ({
       return { top, left };
     }
     
-    // Fallback for messages without positioning
-    const lanes = 6;
-    const laneHeight = 70 / lanes;
+    // Improved fallback positioning - always start from right side
+    const lanes = 12; // Use 12 lanes like the highway system
+    const laneHeight = 75 / lanes; // 75% usable height
+    const topMargin = 12.5;
     const lane = index % lanes;
-    const baseTop = 20 + (lane * laneHeight);
-    const randomOffset = (Math.random() - 0.5) * 6;
+    const baseTop = topMargin + (lane * laneHeight) + (laneHeight / 2);
+    const randomOffset = (Math.random() - 0.5) * 3; // Reduced offset for better lane discipline
     
     return {
-      top: Math.max(25, Math.min(85, baseTop + randomOffset)),
-      left: 100 + Math.random() * 10,
+      top: Math.max(15, Math.min(85, baseTop + randomOffset)), // Better bounds
+      left: 105, // Start from right side of screen (just off visible area)
     };
   });
   const [isVisible, setIsVisible] = useState(false);
@@ -169,27 +170,27 @@ const MessageBubble = ({
     ? userGradients[index % userGradients.length]
     : gradients[index % gradients.length];
 
-  // Calculate animation duration based on activity level with slower base speeds
+  // Calculate animation duration based on activity level with faster base speeds
   // activityLevel is expected to be a number between 1 and 5
   // Higher activityLevel means faster animation (shorter duration)
   useEffect(() => {
     // Clamp activityLevel between 1 and 5
     const clampedActivity = Math.min(Math.max(activityLevel, 1), 5);
-    const minDuration = 15; // Minimum duration in seconds (faster)
-    const maxDuration = 45; // Maximum duration in seconds (much slower for low activity)
+    const minDuration = 8; // Faster minimum duration (was 15)
+    const maxDuration = 20; // Faster maximum duration (was 45)
     
     // Content-based speed adjustment
     const messageLength = message.text ? message.text.length : 50;
-    const lengthMultiplier = 1 + (messageLength / 320); // Longer messages move slightly slower
+    const lengthMultiplier = 1 + (messageLength / 400); // Reduced impact
     
     // Traffic-based speed adjustment
-    const trafficMultiplier = totalMessages > 0 ? 1 + (totalMessages / 20) : 1;
+    const trafficMultiplier = totalMessages > 0 ? 1 + (totalMessages / 30) : 1;
     
     // Map activityLevel (1-5) to duration range inversely proportional to active messages count
     const baseDuration = maxDuration - ((clampedActivity - 1) / 4) * (maxDuration - minDuration);
-    const adjustedDuration = baseDuration * lengthMultiplier * Math.min(trafficMultiplier, 2);
+    const adjustedDuration = baseDuration * lengthMultiplier * Math.min(trafficMultiplier, 1.5);
     
-    setAnimationDuration(`${Math.min(adjustedDuration, 60)}s`); // Cap at 60 seconds
+    setAnimationDuration(`${Math.min(adjustedDuration, 25)}s`); // Cap at 25 seconds (was 60)
   }, [activityLevel, totalMessages, message.text]);
 
 
@@ -205,19 +206,23 @@ const MessageBubble = ({
       return;
     }
 
-    // Synchronized show timing based on server timestamp for regular messages
-    const messageCreatedAt = message.createdAt || new Date(message.timestamp).getTime();
-    const now = Date.now();
-    const syncDelay = Math.max(0, messageCreatedAt - now + 200); // 200ms sync buffer
-    
-    // Show bubble with synchronized timing across all users
-    const showTimer = setTimeout(() => {
-      setIsVisible(true);
-    }, syncDelay);
+    // Immediate show for better responsiveness - no sync delays
+    setIsVisible(true);
 
-    // Start movement with same synchronized timing for regular messages
+    // Start movement immediately for right-to-left flow
+    const finalLeft = -30; // Ensure complete exit off left side
+    
+    // Set initial position to right side if not already set
+    setPosition(prev => {
+      // If position is already valid (from constructor), keep top but ensure starts from right
+      if (prev.left < 100) {
+        return { ...prev, left: 105 }; // Reset to right side
+      }
+      return prev;
+    });
+
+    // Small delay to ensure position is set, then start animation
     const moveTimer = setTimeout(() => {
-      const finalLeft = -30; // Ensure complete exit off left side
       setPosition(prev => {
         const newPosition = { ...prev, left: finalLeft };
         
@@ -228,10 +233,9 @@ const MessageBubble = ({
         
         return newPosition;
       });
-    }, syncDelay + 100);
+    }, 50); // Very small delay just to ensure DOM update
 
     return () => {
-      clearTimeout(showTimer);
       clearTimeout(moveTimer);
     };
   }, [message]);
@@ -324,8 +328,11 @@ const MessageBubble = ({
         minWidth: '120px',
         maxWidth: '400px',
         transform: `scale(${bubbleSize.scale || 1})`,
-        transition: message.isPersistent ? 'opacity 0.3s ease, transform 0.3s ease' : `left ${animationDuration} linear, opacity 0.3s ease, transform 0.3s ease`,
-        willChange: message.isPersistent ? 'opacity, transform' : 'left, opacity, transform'
+        transition: message.isPersistent 
+          ? 'opacity 0.3s ease, transform 0.3s ease' 
+          : `left ${animationDuration} linear, opacity 0.3s ease, transform 0.3s ease`,
+        willChange: message.isPersistent ? 'opacity, transform' : 'left, opacity, transform',
+        zIndex: 10 + index // Ensure proper layering
       }}
     >
       <div className={`vibey-card bg-gradient-to-br ${bubbleGradient} border border-glass-border/30 hover:border-glass-highlight/50 transition-all duration-300 group relative overflow-hidden`}>
