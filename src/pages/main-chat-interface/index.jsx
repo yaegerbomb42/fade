@@ -45,7 +45,16 @@ const MainChatInterface = () => {
     const hasVisited = localStorage.getItem('fade-has-visited');
     return !hasVisited;
   });
-  const [messageTimestamps, setMessageTimestamps] = useState([]);
+  // Add state for persistent message storage across page refreshes
+  const [persistentMessages, setPersistentMessages] = useState(() => {
+    try {
+      const stored = localStorage.getItem(`persistent_messages_${activeChannel?.id || 'default'}`);
+      return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+      console.error('Error loading persistent messages:', error);
+      return [];
+    }
+  });
   const [activityLevel, setActivityLevel] = useState(1);
   const [showTopVibes, setShowTopVibes] = useState(false);
   const [channelVibesHistory, setChannelVibesHistory] = useState({}); // Only for top vibes
@@ -53,6 +62,72 @@ const MainChatInterface = () => {
   const [channelUserCounts, setChannelUserCounts] = useState({}); // Track users per channel
   const [isMobileView, setIsMobileView] = useState(false); // Mobile state
   const [errorMessage, setErrorMessage] = useState(''); // For user-facing error notifications
+  
+  // Store messages to localStorage for persistence across refreshes
+  useEffect(() => {
+    if (!activeChannel?.id) return;
+    
+    const messagesToStore = messages.filter(msg => {
+      const now = Date.now();
+      const messageTime = msg.position?.spawnTime || new Date(msg.timestamp).getTime();
+      const age = now - messageTime;
+      // Only persist messages that are less than 4 minutes old
+      return age < 240000;
+    }).map(msg => ({
+      ...msg,
+      persistedAt: Date.now() // Mark when it was stored
+    }));
+    
+    try {
+      localStorage.setItem(`persistent_messages_${activeChannel.id}`, JSON.stringify(messagesToStore));
+    } catch (error) {
+      console.error('Error storing persistent messages:', error);
+    }
+  }, [messages, activeChannel?.id]);
+
+  // Load persistent messages when channel changes
+  useEffect(() => {
+    if (!activeChannel?.id) return;
+    
+    try {
+      const stored = localStorage.getItem(`persistent_messages_${activeChannel.id}`);
+      if (stored) {
+        const persistedMessages = JSON.parse(stored);
+        const now = Date.now();
+        
+        // Filter out messages that are too old (more than 4 minutes)
+        const validMessages = persistedMessages.filter(msg => {
+          const messageTime = msg.position?.spawnTime || new Date(msg.timestamp).getTime();
+          const age = now - messageTime;
+          return age < 240000;
+        });
+        
+        // Calculate current positions for persisted messages
+        const messagesWithCurrentPositions = validMessages.map(msg => {
+          if (msg.position && msg.position.spawnTime) {
+            const currentPosition = calculateSynchronizedPosition(msg.position, msg.timestamp);
+            return {
+              ...msg,
+              currentPosition: currentPosition,
+              isRestored: true
+            };
+          }
+          return msg;
+        });
+        
+        // Merge with any existing messages, avoiding duplicates
+        setMessages(prevMessages => {
+          const existingIds = new Set(prevMessages.map(m => m.id));
+          const newMessages = messagesWithCurrentPositions.filter(m => !existingIds.has(m.id));
+          return [...prevMessages, ...newMessages];
+        });
+        
+        console.log(`Restored ${messagesWithCurrentPositions.length} messages for channel ${activeChannel.id}`);
+      }
+    } catch (error) {
+      console.error('Error loading persistent messages:', error);
+    }
+  }, [activeChannel?.id]);
   
   // New authentication and feature state
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -444,17 +519,24 @@ const MainChatInterface = () => {
     // Store this message timestamp to prevent duplicates
     localStorage.setItem(lastSentKey, now.toString());
 
-    // Generate proper position for immediate display
+    // Generate synchronized position using timestamp as seed for consistency across all users
+    const timeSeed = Math.floor(now / 1000); // Use seconds for stability across users
+    const channelSeed = activeChannel.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const combinedSeed = (channelSeed + timeSeed) * 9301 + 49297;
+    const pseudoRandom = (combinedSeed % 233280) / 233280;
+    
     const lanes = 12;
     const laneHeight = 75 / lanes; // 75% usable height
     const topMargin = 12.5;
-    const lane = Math.floor(Math.random() * lanes);
+    const lane = Math.floor(pseudoRandom * lanes);
     const laneCenter = topMargin + lane * laneHeight + laneHeight / 2;
-    const randomOffset = (Math.random() - 0.5) * 2; // Small random offset
+    const randomOffset = (pseudoRandom - 0.5) * 4; // Deterministic offset
     
     const messagePosition = {
       top: Math.max(15, Math.min(85, laneCenter + randomOffset)),
-      left: 105 // Start from right side
+      left: 105, // Start from right side
+      spawnTime: now, // Store when message was created for position synchronization
+      lane: lane
     };
 
     // Include author data for signed-in users
@@ -566,6 +648,40 @@ const MainChatInterface = () => {
     // Permanently mark as processed so it never comes back
     permanentlyProcessedIds.current.add(id);
   }, [activeChannel]);
+
+  // Calculate synchronized message position based on spawn time - ensures all users see same positions
+  const calculateSynchronizedPosition = (originalPosition, messageTimestamp) => {
+    if (!originalPosition.spawnTime) return originalPosition;
+    
+    const now = Date.now();
+    const messageAge = now - originalPosition.spawnTime;
+    const maxAge = 240000; // 4 minutes max age for messages
+    
+    // If message is too old, it should be off-screen
+    if (messageAge > maxAge) {
+      return { ...originalPosition, left: -50, isExpired: true };
+    }
+    
+    // Calculate progress through animation (0 = just spawned, 1 = fully traversed)
+    const animationDuration = 180000; // 3 minutes base duration for maximum stability
+    const progress = Math.min(messageAge / animationDuration, 1);
+    
+    // Smooth easing for natural movement
+    const easeOut = (t) => 1 - Math.pow(1 - t, 2.5);
+    const easedProgress = easeOut(progress);
+    
+    // Calculate current position
+    const startX = 105;
+    const endX = -30;
+    const currentX = startX - (easedProgress * (startX - endX));
+    
+    return {
+      ...originalPosition,
+      left: currentX,
+      progress: progress,
+      isExpired: progress >= 1
+    };
+  };
 
   // Highway system server-synchronized positioning with 12-lane support
   const getServerSyncedMessagePosition = (messageTimestamp, channelId) => {
@@ -690,6 +806,12 @@ const MainChatInterface = () => {
       const newMessage = snapshot.val();
       newMessage.id = snapshot.key;
 
+      // Calculate current position based on spawn time for synchronization
+      if (newMessage.position && newMessage.position.spawnTime) {
+        const currentPosition = calculateSynchronizedPosition(newMessage.position, newMessage.timestamp);
+        newMessage.currentPosition = currentPosition;
+      }
+
       setMessages((prev) => {
         if (prev.find((msg) => msg.id === newMessage.id)) {
           return prev;
@@ -738,7 +860,7 @@ const MainChatInterface = () => {
     };
   }, [activeChannel?.id, database]);
 
-  // Simplified message flow - ensure immediate right-to-left animation
+  // Simplified message flow - ensure immediate right-to-left animation with position synchronization
   useEffect(() => {
     if (!activeChannel?.id) return;
 
@@ -759,7 +881,9 @@ const MainChatInterface = () => {
             ...msg,
             position: { 
               top: Math.max(15, Math.min(85, laneCenter + randomOffset)), 
-              left: 105 // Start from right side
+              left: 105, // Start from right side
+              spawnTime: Date.now(),
+              lane: lane
             },
           };
         }
@@ -767,26 +891,51 @@ const MainChatInterface = () => {
       });
     };
 
-    // Assign positions to messages that don't have them
+    // Function to update positions for synchronized messages
+    const updateSynchronizedPositions = (msgs) => {
+      return msgs.map(msg => {
+        if (msg.position && msg.position.spawnTime) {
+          const syncedPosition = calculateSynchronizedPosition(msg.position, msg.timestamp);
+          return {
+            ...msg,
+            currentPosition: syncedPosition
+          };
+        }
+        return msg;
+      });
+    };
+
+    // Assign positions to messages that don't have them and update synchronized positions
     setMessages((prevMessages) => {
-      return assignLaneToNewMessages(prevMessages);
+      const withPositions = assignLaneToNewMessages(prevMessages);
+      return updateSynchronizedPositions(withPositions);
     });
 
-    // Clean up expired messages every 5 seconds instead of every second
-    const interval = setInterval(() => {
+    // Update synchronized positions every 2 seconds for smooth movement
+    const syncInterval = setInterval(() => {
+      setMessages((prevMessages) => {
+        return updateSynchronizedPositions(prevMessages);
+      });
+    }, 2000);
+
+    // Clean up expired messages every 10 seconds
+    const cleanupInterval = setInterval(() => {
       const now = Date.now();
-      const maxAge = 60000; // 60 seconds max age
+      const maxAge = 240000; // 4 minutes max age for very slow messages
       
       setMessages((prevMessages) => {
         return prevMessages.filter(msg => {
-          const messageTime = new Date(msg.timestamp).getTime();
-          const age = now - messageTime;
+          if (!msg.position || !msg.position.spawnTime) return true;
+          const age = now - msg.position.spawnTime;
           return age < maxAge;
         });
       });
-    }, 5000);
+    }, 10000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(syncInterval);
+      clearInterval(cleanupInterval);
+    };
   }, [activeChannel?.id]);
 
   // Show loading screen while checking authentication
