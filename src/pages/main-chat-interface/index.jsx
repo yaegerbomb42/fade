@@ -71,8 +71,8 @@ const MainChatInterface = () => {
       const now = Date.now();
       const messageTime = msg.position?.spawnTime || new Date(msg.timestamp).getTime();
       const age = now - messageTime;
-      // Persist messages for the full animation duration (45 seconds) to ensure viewers see the complete fade world
-      return age < REGULAR_MESSAGE_FLOW_DURATION;
+      // Persist messages for the full animation duration plus grace period to ensure viewers see the complete fade world
+      return age < (REGULAR_MESSAGE_FLOW_DURATION + 10000); // Add 10 seconds for storage grace period
     }).map(msg => ({
       ...msg,
       persistedAt: Date.now(), // Mark when it was stored
@@ -109,8 +109,9 @@ const MainChatInterface = () => {
         const validMessages = persistedMessages.filter(msg => {
           const messageTime = msg.position?.spawnTime || msg.originalPosition?.spawnTime || new Date(msg.timestamp).getTime();
           const age = now - messageTime;
-          const isValid = age < REGULAR_MESSAGE_FLOW_DURATION; // 45 seconds
-          console.log(`Message ${msg.id}: age=${age}ms, valid=${isValid}, limit=${REGULAR_MESSAGE_FLOW_DURATION}ms`);
+          // Use a slightly longer timeframe to ensure messages persist across quick refreshes
+          const isValid = age < (REGULAR_MESSAGE_FLOW_DURATION + 5000); // Add 5 seconds grace period
+          console.log(`Message ${msg.id}: age=${age}ms, valid=${isValid}, limit=${REGULAR_MESSAGE_FLOW_DURATION + 5000}ms`);
           return isValid;
         });
         
@@ -707,13 +708,13 @@ const MainChatInterface = () => {
     const messageAge = now - originalPosition.spawnTime;
     const maxAge = REGULAR_MESSAGE_FLOW_DURATION; // 45 seconds max age for professional experience
     
-    // If message is too old, it should be off-screen
+    // If message is too old, it should be off-screen (but still return valid position for cleanup)
     if (messageAge > maxAge) {
       return { ...originalPosition, left: -50, isExpired: true };
     }
     
     // Calculate progress through animation (0 = just spawned, 1 = fully traversed)
-    const progress = Math.min(messageAge / REGULAR_MESSAGE_FLOW_DURATION, 1);
+    const progress = Math.min(Math.max(0, messageAge / REGULAR_MESSAGE_FLOW_DURATION), 1);
     
     // Enhanced easing for more professional, smooth movement
     const easeOutQuart = (t) => 1 - Math.pow(1 - t, 4); // Smoother professional easing
@@ -729,7 +730,8 @@ const MainChatInterface = () => {
       left: currentX,
       progress: progress,
       isExpired: progress >= 1,
-      calculatedAt: now
+      calculatedAt: now,
+      messageAge: messageAge
     };
   };
 
