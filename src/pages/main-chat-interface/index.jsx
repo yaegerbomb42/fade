@@ -63,7 +63,7 @@ const MainChatInterface = () => {
   const [isMobileView, setIsMobileView] = useState(false); // Mobile state
   const [errorMessage, setErrorMessage] = useState(''); // For user-facing error notifications
   
-  // Store messages to localStorage for persistence across refreshes
+  // Enhanced message persistence system for synchronized "fade world" experience
   useEffect(() => {
     if (!activeChannel?.id) return;
     
@@ -71,58 +71,91 @@ const MainChatInterface = () => {
       const now = Date.now();
       const messageTime = msg.position?.spawnTime || new Date(msg.timestamp).getTime();
       const age = now - messageTime;
-      // Only persist messages that are less than 5 minutes old for better cross-session experience
-      return age < 300000;
+      // Persist messages for the full animation duration plus grace period to ensure viewers see the complete fade world
+      return age < (REGULAR_MESSAGE_FLOW_DURATION + 10000); // Add 10 seconds for storage grace period
     }).map(msg => ({
       ...msg,
-      persistedAt: Date.now() // Mark when it was stored
+      persistedAt: Date.now(), // Mark when it was stored
+      // Ensure position data is preserved for proper restoration
+      originalPosition: msg.position || msg.originalPosition
     }));
+    
+    console.log(`Storing ${messagesToStore.length} messages for channel ${activeChannel.id}`);
     
     try {
       localStorage.setItem(`persistent_messages_${activeChannel.id}`, JSON.stringify(messagesToStore));
+      // Also store the last update time for better sync
+      localStorage.setItem(`last_message_update_${activeChannel.id}`, Date.now().toString());
+      console.log(`Successfully stored messages for channel ${activeChannel.id}`);
     } catch (error) {
       console.error('Error storing persistent messages:', error);
     }
   }, [messages, activeChannel?.id]);
 
-  // Load persistent messages when channel changes
+  // Enhanced message restoration with proper synchronization for "fade world" experience
   useEffect(() => {
     if (!activeChannel?.id) return;
     
     try {
       const stored = localStorage.getItem(`persistent_messages_${activeChannel.id}`);
+      console.log(`Checking persistence for channel ${activeChannel.id}, found:`, stored ? 'data' : 'no data');
+      
       if (stored) {
         const persistedMessages = JSON.parse(stored);
         const now = Date.now();
+        console.log(`Found ${persistedMessages.length} persisted messages, current time:`, now);
         
-        // Filter out messages that are too old (more than 5 minutes)
+        // Filter messages that are still within the animation timeframe
         const validMessages = persistedMessages.filter(msg => {
-          const messageTime = msg.position?.spawnTime || new Date(msg.timestamp).getTime();
+          const messageTime = msg.position?.spawnTime || msg.originalPosition?.spawnTime || new Date(msg.timestamp).getTime();
           const age = now - messageTime;
-          return age < 300000;
+          // Use a slightly longer timeframe to ensure messages persist across quick refreshes
+          const isValid = age < (REGULAR_MESSAGE_FLOW_DURATION + 5000); // Add 5 seconds grace period
+          console.log(`Message ${msg.id}: age=${age}ms, valid=${isValid}, limit=${REGULAR_MESSAGE_FLOW_DURATION + 5000}ms`);
+          return isValid;
         });
         
-        // Calculate current positions for persisted messages
+        console.log(`${validMessages.length} messages are still valid`);
+        
+        // Calculate current synchronized positions for all restored messages
         const messagesWithCurrentPositions = validMessages.map(msg => {
-          if (msg.position && msg.position.spawnTime) {
-            const currentPosition = calculateSynchronizedPosition(msg.position, msg.timestamp);
+          const positionData = msg.position || msg.originalPosition;
+          if (positionData && positionData.spawnTime) {
+            const currentPosition = calculateSynchronizedPosition(positionData, msg.timestamp);
+            console.log(`Message ${msg.id} position:`, currentPosition);
             return {
               ...msg,
+              position: positionData, // Preserve original position data
               currentPosition: currentPosition,
               isRestored: true
             };
           }
-          return msg;
+          return {
+            ...msg,
+            isRestored: true
+          };
         });
         
-        // Merge with any existing messages, avoiding duplicates
-        setMessages(prevMessages => {
-          const existingIds = new Set(prevMessages.map(m => m.id));
-          const newMessages = messagesWithCurrentPositions.filter(m => !existingIds.has(m.id));
-          return [...prevMessages, ...newMessages];
+        // Only show messages that are still visible (not expired)
+        const visibleMessages = messagesWithCurrentPositions.filter(msg => {
+          const isVisible = !msg.currentPosition?.isExpired;
+          console.log(`Message ${msg.id} visible:`, isVisible);
+          return isVisible;
         });
         
-        console.log(`Restored ${messagesWithCurrentPositions.length} messages for channel ${activeChannel.id}`);
+        if (visibleMessages.length > 0) {
+          // Merge with any existing messages, avoiding duplicates
+          setMessages(prevMessages => {
+            const existingIds = new Set(prevMessages.map(m => m.id));
+            const newMessages = visibleMessages.filter(m => !existingIds.has(m.id));
+            console.log(`Adding ${newMessages.length} new messages to UI`);
+            return [...prevMessages, ...newMessages];
+          });
+          
+          console.log(`Restored ${visibleMessages.length} synchronized messages for channel ${activeChannel.id}`);
+        } else {
+          console.log(`No visible messages to restore for channel ${activeChannel.id}`);
+        }
       }
     } catch (error) {
       console.error('Error loading persistent messages:', error);
@@ -519,22 +552,22 @@ const MainChatInterface = () => {
     // Store this message timestamp to prevent duplicates
     localStorage.setItem(lastSentKey, now.toString());
 
-    // Generate server-side deterministic position using simplified algorithm
+    // Enhanced deterministic position using optimized algorithm for synchronized experience
     const timeSeed = Math.floor(now / 1000); // Use seconds for stability across users
     const channelSeed = activeChannel.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     const combinedSeed = (channelSeed + timeSeed) * 9301 + 49297;
     const pseudoRandom = (combinedSeed % 233280) / 233280;
     
-    // Simplified lane system (8 lanes for professional layout)
-    const lanes = 8;
-    const laneHeight = 70 / lanes; // 70% usable height
+    // Optimized lane system (10 lanes for better distribution)
+    const lanes = 10;
+    const laneHeight = 70 / lanes; // 70% usable height for professional margins
     const topMargin = 15;
     const lane = Math.floor(pseudoRandom * lanes);
     const laneCenter = topMargin + lane * laneHeight + laneHeight / 2;
-    const randomOffset = (pseudoRandom - 0.5) * 2; // Subtle offset for variation
+    const randomOffset = (pseudoRandom - 0.5) * 1.5; // Reduced for professional alignment
     
     const messagePosition = {
-      top: Math.max(10, Math.min(80, laneCenter + randomOffset)),
+      top: Math.max(12, Math.min(83, laneCenter + randomOffset)), // Enhanced bounds
       left: 105, // Start from right side
       spawnTime: now, // Store when message was created for position synchronization
       lane: lane
@@ -558,6 +591,7 @@ const MainChatInterface = () => {
       isUserMessage: true,
       timestamp: new Date().toISOString(),
       position: messagePosition, // Server-determined position
+      originalPosition: messagePosition, // Preserve for restoration
       createdAt: Date.now(), // For precise timing synchronization
       userId: userId, // Track who sent it
       id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` // Generate local ID
@@ -672,31 +706,32 @@ const MainChatInterface = () => {
     
     const now = Date.now();
     const messageAge = now - originalPosition.spawnTime;
-    const maxAge = 50000; // 50 seconds max age for professional chat experience
+    const maxAge = REGULAR_MESSAGE_FLOW_DURATION; // 45 seconds max age for professional experience
     
-    // If message is too old, it should be off-screen
+    // If message is too old, it should be off-screen (but still return valid position for cleanup)
     if (messageAge > maxAge) {
       return { ...originalPosition, left: -50, isExpired: true };
     }
     
     // Calculate progress through animation (0 = just spawned, 1 = fully traversed)
-    const animationDuration = 45000; // 45 seconds for smooth, professional flow
-    const progress = Math.min(messageAge / animationDuration, 1);
+    const progress = Math.min(Math.max(0, messageAge / REGULAR_MESSAGE_FLOW_DURATION), 1);
     
-    // Smooth easing for natural movement
-    const easeOut = (t) => 1 - Math.pow(1 - t, 2.2); // Gentler easing for professional feel
-    const easedProgress = easeOut(progress);
+    // Enhanced easing for more professional, smooth movement
+    const easeOutQuart = (t) => 1 - Math.pow(1 - t, 4); // Smoother professional easing
+    const easedProgress = easeOutQuart(progress);
     
-    // Calculate current position
-    const startX = 105;
-    const endX = -30;
+    // Calculate current position with consistent coordinates
+    const startX = 105; // Start from right edge
+    const endX = -35;   // End off left edge
     const currentX = startX - (easedProgress * (startX - endX));
     
     return {
       ...originalPosition,
       left: currentX,
       progress: progress,
-      isExpired: progress >= 1
+      isExpired: progress >= 1,
+      calculatedAt: now,
+      messageAge: messageAge
     };
   };
 
@@ -872,42 +907,52 @@ const MainChatInterface = () => {
     };
   }, [activeChannel?.id, database]);
 
-  // Simplified message flow - ensure immediate right-to-left animation with position synchronization
+  // Optimized message flow system for professional performance and synchronized experience
   useEffect(() => {
     if (!activeChannel?.id) return;
 
     // Function to assign lane positions for new messages only
     const assignLaneToNewMessages = (msgs) => {
-      const lanes = 12;
-      const laneHeight = 75 / lanes; // 75% usable height
-      const topMargin = 12.5;
+      const lanes = 10; // Increased lanes for better distribution
+      const laneHeight = 70 / lanes; // 70% usable height for professional margins
+      const topMargin = 15;
 
       return msgs.map((msg, index) => {
         // Only assign position if message doesn't have one
-        if (!msg.position) {
-          const lane = index % lanes; // Simple lane assignment
+        if (!msg.position && !msg.originalPosition) {
+          // Use message timestamp for deterministic lane assignment
+          const messageTime = new Date(msg.timestamp).getTime();
+          const timeSeed = Math.floor(messageTime / 1000);
+          const combinedSeed = (timeSeed + index) * 9301 + 49297;
+          const pseudoRandom = (combinedSeed % 233280) / 233280;
+          
+          const lane = Math.floor(pseudoRandom * lanes);
           const laneCenter = topMargin + lane * laneHeight + laneHeight / 2;
-          const randomOffset = (Math.random() - 0.5) * 2; // Small random offset
+          const randomOffset = (pseudoRandom - 0.5) * 1.5; // Reduced for professional alignment
+          
+          const position = { 
+            top: Math.max(12, Math.min(83, laneCenter + randomOffset)), 
+            left: 105, // Start from right side
+            spawnTime: Date.now(),
+            lane: lane
+          };
           
           return {
             ...msg,
-            position: { 
-              top: Math.max(15, Math.min(85, laneCenter + randomOffset)), 
-              left: 105, // Start from right side
-              spawnTime: Date.now(),
-              lane: lane
-            },
+            position: position,
+            originalPosition: position // Preserve for restoration
           };
         }
         return msg;
       });
     };
 
-    // Function to update positions for synchronized messages
+    // Function to update positions for synchronized messages with better performance
     const updateSynchronizedPositions = (msgs) => {
       return msgs.map(msg => {
-        if (msg.position && msg.position.spawnTime) {
-          const syncedPosition = calculateSynchronizedPosition(msg.position, msg.timestamp);
+        const positionData = msg.position || msg.originalPosition;
+        if (positionData && positionData.spawnTime) {
+          const syncedPosition = calculateSynchronizedPosition(positionData, msg.timestamp);
           return {
             ...msg,
             currentPosition: syncedPosition
@@ -923,26 +968,26 @@ const MainChatInterface = () => {
       return updateSynchronizedPositions(withPositions);
     });
 
-    // Update synchronized positions every 3 seconds for smoother performance and battery life
+    // Update synchronized positions every 2 seconds for smoother performance
     const syncInterval = setInterval(() => {
       setMessages((prevMessages) => {
         return updateSynchronizedPositions(prevMessages);
       });
-    }, 3000);
+    }, 2000); // Reduced interval for smoother updates
 
-    // Clean up expired messages every 10 seconds for better performance
+    // Clean up expired messages every 8 seconds for optimal performance
     const cleanupInterval = setInterval(() => {
       const now = Date.now();
-      const maxAge = 50000; // 50 seconds max age for better user experience
       
       setMessages((prevMessages) => {
         return prevMessages.filter(msg => {
-          if (!msg.position || !msg.position.spawnTime) return true;
-          const age = now - msg.position.spawnTime;
-          return age < maxAge;
+          const positionData = msg.position || msg.originalPosition;
+          if (!positionData || !positionData.spawnTime) return true;
+          const age = now - positionData.spawnTime;
+          return age < REGULAR_MESSAGE_FLOW_DURATION; // Keep messages for full animation duration
         });
       });
-    }, 10000);
+    }, 8000); // Optimized cleanup interval
 
     return () => {
       clearInterval(syncInterval);

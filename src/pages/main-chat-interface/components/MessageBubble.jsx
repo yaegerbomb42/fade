@@ -22,77 +22,77 @@ const MessageBubble = ({
     return null;
   }
   
-  // Server-synchronized positioning - calculate current position based on message timestamp
+  // Enhanced server-synchronized positioning for consistent "fade world" experience
   const calculateCurrentPosition = () => {
-    // Use synchronized position calculation that matches the main interface
+    // Priority 1: Use synchronized position from main interface if available
     if (message.currentPosition) {
       return {
         top: message.currentPosition.top,
-        left: message.currentPosition.left
+        left: message.currentPosition.left,
+        isExpired: message.currentPosition.isExpired
       };
     }
     
-    // If message has stored position with spawn time, calculate current position using exact same algorithm as main interface
-    if (message.position && message.position.spawnTime) {
+    // Priority 2: Calculate from stored position data (matches main interface exactly)
+    const positionData = message.position || message.originalPosition;
+    if (positionData && positionData.spawnTime) {
       const now = Date.now();
-      const messageAge = now - message.position.spawnTime;
-      const maxAge = 50000; // 50 seconds max age for professional experience
+      const messageAge = now - positionData.spawnTime;
+      const maxAge = 45000; // Match REGULAR_MESSAGE_FLOW_DURATION
       
       // If message is too old, it should be off-screen
       if (messageAge > maxAge) {
-        return { top: message.position.top, left: -50, isExpired: true };
+        return { top: positionData.top, left: -50, isExpired: true };
       }
       
       // Calculate progress through animation (0 = just spawned, 1 = fully traversed)
-      const animationDuration = 45000; // 45 seconds for professional flow
-      const progress = Math.min(messageAge / animationDuration, 1);
+      const progress = Math.min(messageAge / 45000, 1); // 45 seconds duration
       
-      // Smooth easing for natural movement - exact same as main interface
-      const easeOut = (t) => 1 - Math.pow(1 - t, 2.2); // Professional easing
-      const easedProgress = easeOut(progress);
+      // Enhanced easing for professional movement (matches main interface)
+      const easeOutQuart = (t) => 1 - Math.pow(1 - t, 4); // Smoother professional easing
+      const easedProgress = easeOutQuart(progress);
       
-      // Calculate current position - exact same as main interface
+      // Calculate current position (exact same coordinates as main interface)
       const startX = 105;
-      const endX = -30;
+      const endX = -35;
       const currentX = startX - (easedProgress * (startX - endX));
       
       return {
-        top: message.position.top,
+        top: positionData.top,
         left: currentX,
         progress: progress,
         isExpired: progress >= 1
       };
     }
     
-    // For messages without position data, generate deterministic position using same algorithm as main interface
+    // Priority 3: Generate deterministic position for messages without position data
     const messageTime = new Date(message.timestamp).getTime();
     const now = Date.now();
     const messageAge = now - messageTime;
     
-    // Generate deterministic position using message timestamp (same as main interface)
-    const timeSeed = Math.floor(messageTime / 1000); // Use seconds for stability
-    const combinedSeed = (timeSeed + index) * 9301 + 49297;
+    // Generate deterministic position using message timestamp (matches main interface)
+    const timeSeed = Math.floor(messageTime / 1000);
+    const combinedSeed = (timeSeed + (index || 0)) * 9301 + 49297;
     const pseudoRandom = (combinedSeed % 233280) / 233280;
     
-    const lanes = 8; // Simplified 8-lane system for professional layout
+    const lanes = 10; // Match main interface lane count
     const laneHeight = 70 / lanes; // 70% usable height
     const topMargin = 15;
     const lane = Math.floor(pseudoRandom * lanes);
     const laneCenter = topMargin + lane * laneHeight + laneHeight / 2;
-    const randomOffset = (pseudoRandom - 0.5) * 2; // Subtle variation
+    const randomOffset = (pseudoRandom - 0.5) * 1.5; // Reduced for professional alignment
     
     // Calculate progress and position
-    const animationDuration = 45000; // 45 seconds for professional flow
-    const progress = Math.min(Math.max(0, messageAge / animationDuration), 1);
-    const easeOut = (t) => 1 - Math.pow(1 - t, 2.2); // Professional easing
-    const easedProgress = easeOut(progress);
+    const progress = Math.min(Math.max(0, messageAge / 45000), 1);
+    const easeOutQuart = (t) => 1 - Math.pow(1 - t, 4);
+    const easedProgress = easeOutQuart(progress);
     
     const startX = 105;
-    const endX = -30;
+    const endX = -35;
     const currentX = startX - (easedProgress * (startX - endX));
     
     return {
-      top: Math.max(10, Math.min(80, laneCenter + randomOffset)), // Professional bounds
+      top: Math.max(12, Math.min(83, laneCenter + randomOffset)), // Match main interface bounds
       left: currentX,
       progress: progress,
       isExpired: progress >= 1
@@ -227,18 +227,18 @@ const MessageBubble = ({
 
 
 
-  // Update position when message.currentPosition changes or every 2 seconds for synchronization
+  // Enhanced position synchronization with optimized update intervals
   useEffect(() => {
     // Always use synchronized positioning - no local animation overrides
     const updatePosition = () => {
       const newPosition = calculateCurrentPosition();
       setPosition(newPosition);
       
-      // If message is expired, trigger removal
+      // If message is expired, trigger removal with slight delay for smooth exit
       if (newPosition.isExpired) {
         setTimeout(() => {
           onRemove && onRemove(message.id);
-        }, 1000); // Small delay to allow for smooth exit
+        }, 500); // Reduced delay for quicker cleanup
       }
     };
     
@@ -246,8 +246,8 @@ const MessageBubble = ({
     updatePosition();
     setIsVisible(true);
     
-    // Update position every 3 seconds for smoother synchronized movement and better performance
-    const positionInterval = setInterval(updatePosition, 3000);
+    // Update position every 2 seconds for smooth synchronized movement and better performance
+    const positionInterval = setInterval(updatePosition, 2000);
     
     return () => {
       clearInterval(positionInterval);
@@ -332,7 +332,7 @@ const MessageBubble = ({
         minWidth: '120px', // Compact minimum width
         maxWidth: '350px', // Reasonable maximum width
         transform: `scale(${bubbleSize.scale || 1})`,
-        transition: 'left 3s ease-out, opacity 0.5s ease, transform 0.5s ease', // Smoother transitions
+        transition: 'left 2s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.3s ease, transform 0.3s ease', // Enhanced smooth transitions
         willChange: 'left, opacity, transform',
         zIndex: 100 + index, // High z-index to ensure visibility
         position: 'fixed' // Ensure fixed positioning for screen flow
