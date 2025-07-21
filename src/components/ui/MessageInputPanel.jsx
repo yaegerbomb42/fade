@@ -124,8 +124,8 @@ const MessageInputPanel = ({ onSendMessage, activeChannel, isTyping, onTypingCha
 
   const startReloadAnimation = () => {
     setIsReloading(true);
-    setCooldownTime(2);
-    startCooldownTimer(2);
+    setCooldownTime(1); // Reduced to 1 second for better user experience
+    startCooldownTimer(1);
   };
 
   const handleSendMessage = useCallback((e) => {

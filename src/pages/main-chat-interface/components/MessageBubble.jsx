@@ -36,7 +36,7 @@ const MessageBubble = ({
     if (message.position && message.position.spawnTime) {
       const now = Date.now();
       const messageAge = now - message.position.spawnTime;
-      const maxAge = 20000; // 20 seconds max age for faster cycling
+      const maxAge = 50000; // 50 seconds max age for professional experience
       
       // If message is too old, it should be off-screen
       if (messageAge > maxAge) {
@@ -44,11 +44,11 @@ const MessageBubble = ({
       }
       
       // Calculate progress through animation (0 = just spawned, 1 = fully traversed)
-      const animationDuration = 15000; // 15 seconds for faster flow
+      const animationDuration = 45000; // 45 seconds for professional flow
       const progress = Math.min(messageAge / animationDuration, 1);
       
       // Smooth easing for natural movement - exact same as main interface
-      const easeOut = (t) => 1 - Math.pow(1 - t, 2.5);
+      const easeOut = (t) => 1 - Math.pow(1 - t, 2.2); // Professional easing
       const easedProgress = easeOut(progress);
       
       // Calculate current position - exact same as main interface
@@ -74,17 +74,17 @@ const MessageBubble = ({
     const combinedSeed = (timeSeed + index) * 9301 + 49297;
     const pseudoRandom = (combinedSeed % 233280) / 233280;
     
-    const lanes = 12;
-    const laneHeight = 75 / lanes; // 75% usable height
-    const topMargin = 12.5;
+    const lanes = 8; // Simplified 8-lane system for professional layout
+    const laneHeight = 70 / lanes; // 70% usable height
+    const topMargin = 15;
     const lane = Math.floor(pseudoRandom * lanes);
     const laneCenter = topMargin + lane * laneHeight + laneHeight / 2;
-    const randomOffset = (pseudoRandom - 0.5) * 4; // Deterministic offset
+    const randomOffset = (pseudoRandom - 0.5) * 2; // Subtle variation
     
     // Calculate progress and position
-    const animationDuration = 15000; // 15 seconds for faster flow
+    const animationDuration = 45000; // 45 seconds for professional flow
     const progress = Math.min(Math.max(0, messageAge / animationDuration), 1);
-    const easeOut = (t) => 1 - Math.pow(1 - t, 2.5);
+    const easeOut = (t) => 1 - Math.pow(1 - t, 2.2); // Professional easing
     const easedProgress = easeOut(progress);
     
     const startX = 105;
@@ -92,7 +92,7 @@ const MessageBubble = ({
     const currentX = startX - (easedProgress * (startX - endX));
     
     return {
-      top: Math.max(15, Math.min(85, laneCenter + randomOffset)),
+      top: Math.max(10, Math.min(80, laneCenter + randomOffset)), // Professional bounds
       left: currentX,
       progress: progress,
       isExpired: progress >= 1
@@ -246,8 +246,8 @@ const MessageBubble = ({
     updatePosition();
     setIsVisible(true);
     
-    // Update position every 1 second for smoother synchronized movement
-    const positionInterval = setInterval(updatePosition, 1000);
+    // Update position every 3 seconds for smoother synchronized movement and better performance
+    const positionInterval = setInterval(updatePosition, 3000);
     
     return () => {
       clearInterval(positionInterval);
@@ -332,7 +332,7 @@ const MessageBubble = ({
         minWidth: '120px', // Compact minimum width
         maxWidth: '350px', // Reasonable maximum width
         transform: `scale(${bubbleSize.scale || 1})`,
-        transition: 'left 1s ease-out, opacity 0.3s ease, transform 0.3s ease',
+        transition: 'left 3s ease-out, opacity 0.5s ease, transform 0.5s ease', // Smoother transitions
         willChange: 'left, opacity, transform',
         zIndex: 100 + index, // High z-index to ensure visibility
         position: 'fixed' // Ensure fixed positioning for screen flow

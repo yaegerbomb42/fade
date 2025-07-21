@@ -40,7 +40,7 @@ const AnimatedBackground = () => {
     };
 
     const animate = () => {
-      time += 16;
+      time += 32; // Slower animation for better performance
       
       // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -50,23 +50,23 @@ const AnimatedBackground = () => {
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Add subtle nebula effects
+      // Add subtle nebula effects - reduced for performance
       ctx.globalCompositeOperation = 'screen';
       
-      // Floating orbs
-      for (let i = 0; i < 3; i++) {
+      // Reduced floating orbs for better performance
+      for (let i = 0; i < 2; i++) {
         const orbGradient = ctx.createRadialGradient(
-          canvas.width * (0.2 + i * 0.3) + Math.sin(time * 0.0005 + i) * 100,
-          canvas.height * (0.3 + i * 0.2) + Math.cos(time * 0.0007 + i) * 80,
+          canvas.width * (0.3 + i * 0.4) + Math.sin(time * 0.0005 + i) * 100,
+          canvas.height * (0.4 + i * 0.2) + Math.cos(time * 0.0007 + i) * 80,
           0,
-          canvas.width * (0.2 + i * 0.3),
-          canvas.height * (0.3 + i * 0.2),
+          canvas.width * (0.3 + i * 0.4),
+          canvas.height * (0.4 + i * 0.2),
           200 + i * 50
         );
 
         const orbHue = 260 + i * 40 + Math.sin(time * 0.001) * 20;
-        orbGradient.addColorStop(0, `hsla(${orbHue}, 80%, 30%, 0.1)`);
-        orbGradient.addColorStop(0.5, `hsla(${orbHue}, 70%, 20%, 0.05)`);
+        orbGradient.addColorStop(0, `hsla(${orbHue}, 80%, 30%, 0.08)`); // Reduced opacity
+        orbGradient.addColorStop(0.5, `hsla(${orbHue}, 70%, 20%, 0.04)`);
         orbGradient.addColorStop(1, `hsla(${orbHue}, 60%, 10%, 0)`);
 
         ctx.fillStyle = orbGradient;
@@ -75,7 +75,10 @@ const AnimatedBackground = () => {
 
       ctx.globalCompositeOperation = 'source-over';
       
-      animationRef.current = requestAnimationFrame(animate);
+      // Throttle animation to 30fps for better performance
+      setTimeout(() => {
+        animationRef.current = requestAnimationFrame(animate);
+      }, 33);
     };
 
     resizeCanvas();
