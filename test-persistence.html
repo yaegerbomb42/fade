@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FADE Message Persistence Test</title>
+</head>
+<body>
+    <h1>FADE Message Persistence Test</h1>
+    <div id="output"></div>
+    
+    <script>
+        // Test the enhanced persistence system
+        function testPersistence() {
+            const output = document.getElementById('output');
+            
+            // Simulate a message with the new structure
+            const testMessage = {
+                id: 'test_' + Date.now(),
+                text: 'Test persistence message',
+                author: 'TestUser',
+                timestamp: new Date().toISOString(),
+                position: {
+                    top: 25,
+                    left: 105,
+                    spawnTime: Date.now(),
+                    lane: 3
+                },
+                originalPosition: {
+                    top: 25,
+                    left: 105,
+                    spawnTime: Date.now(),
+                    lane: 3
+                },
+                persistedAt: Date.now(),
+                reactions: { thumbsUp: 0, thumbsDown: 0 }
+            };
+            
+            // Store the message
+            const channelId = 'vibes';
+            const storageKey = `persistent_messages_${channelId}`;
+            
+            try {
+                // Store message in localStorage
+                const messages = [testMessage];
+                localStorage.setItem(storageKey, JSON.stringify(messages));
+                localStorage.setItem(`last_message_update_${channelId}`, Date.now().toString());
+                
+                output.innerHTML += '<p>✓ Message stored successfully</p>';
+                
+                // Test retrieval
+                const stored = localStorage.getItem(storageKey);
+                if (stored) {
+                    const retrievedMessages = JSON.parse(stored);
+                    output.innerHTML += '<p>✓ Message retrieved successfully</p>';
+                    output.innerHTML += '<pre>' + JSON.stringify(retrievedMessages[0], null, 2) + '</pre>';
+                    
+                    // Test position calculation
+                    const REGULAR_MESSAGE_FLOW_DURATION = 45000;
+                    const now = Date.now();
+                    const messageAge = now - retrievedMessages[0].position.spawnTime;
+                    const progress = Math.min(messageAge / REGULAR_MESSAGE_FLOW_DURATION, 1);
+                    
+                    // Enhanced easing
+                    const easeOutQuart = (t) => 1 - Math.pow(1 - t, 4);
+                    const easedProgress = easeOutQuart(progress);
+                    
+                    const startX = 105;
+                    const endX = -35;
+                    const currentX = startX - (easedProgress * (startX - endX));
+                    
+                    const currentPosition = {
+                        top: retrievedMessages[0].position.top,
+                        left: currentX,
+                        progress: progress,
+                        isExpired: progress >= 1
+                    };
+                    
+                    output.innerHTML += '<p>✓ Position calculated:</p>';
+                    output.innerHTML += '<pre>' + JSON.stringify(currentPosition, null, 2) + '</pre>';
+                    
+                    // Test if message should be visible
+                    const shouldBeVisible = messageAge < REGULAR_MESSAGE_FLOW_DURATION && !currentPosition.isExpired;
+                    output.innerHTML += '<p>Should be visible: ' + shouldBeVisible + '</p>';
+                    output.innerHTML += '<p>Message age: ' + messageAge + 'ms</p>';
+                    output.innerHTML += '<p>Duration limit: ' + REGULAR_MESSAGE_FLOW_DURATION + 'ms</p>';
+                    
+                } else {
+                    output.innerHTML += '<p>✗ Failed to retrieve message</p>';
+                }
+            } catch (error) {
+                output.innerHTML += '<p>✗ Error: ' + error.message + '</p>';
+            }
+        }
+        
+        // Run test
+        testPersistence();
+    </script>
+</body>
+</html>
