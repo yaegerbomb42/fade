@@ -71,8 +71,8 @@ const MainChatInterface = () => {
       const now = Date.now();
       const messageTime = msg.position?.spawnTime || new Date(msg.timestamp).getTime();
       const age = now - messageTime;
-      // Only persist messages that are less than 2 minutes old
-      return age < 120000;
+      // Only persist messages that are less than 5 minutes old for better cross-session experience
+      return age < 300000;
     }).map(msg => ({
       ...msg,
       persistedAt: Date.now() // Mark when it was stored
@@ -95,11 +95,11 @@ const MainChatInterface = () => {
         const persistedMessages = JSON.parse(stored);
         const now = Date.now();
         
-        // Filter out messages that are too old (more than 2 minutes)
+        // Filter out messages that are too old (more than 5 minutes)
         const validMessages = persistedMessages.filter(msg => {
           const messageTime = msg.position?.spawnTime || new Date(msg.timestamp).getTime();
           const age = now - messageTime;
-          return age < 120000;
+          return age < 300000;
         });
         
         // Calculate current positions for persisted messages
@@ -142,7 +142,7 @@ const MainChatInterface = () => {
     return localStorage.getItem('fade-guest-mode-confirmed') === 'true';
   });
   
-  const REGULAR_MESSAGE_FLOW_DURATION = 15000; // 15 seconds for faster message flow
+  const REGULAR_MESSAGE_FLOW_DURATION = 45000; // 45 seconds for professional, readable message flow
   const activityTimeWindow = 30 * 1000; // 30 seconds
   const currentUserId = useRef(getUserId());
   const presenceRef = useRef(null);
@@ -519,21 +519,22 @@ const MainChatInterface = () => {
     // Store this message timestamp to prevent duplicates
     localStorage.setItem(lastSentKey, now.toString());
 
-    // Generate synchronized position using timestamp as seed for consistency across all users
+    // Generate server-side deterministic position using simplified algorithm
     const timeSeed = Math.floor(now / 1000); // Use seconds for stability across users
     const channelSeed = activeChannel.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     const combinedSeed = (channelSeed + timeSeed) * 9301 + 49297;
     const pseudoRandom = (combinedSeed % 233280) / 233280;
     
-    const lanes = 12;
-    const laneHeight = 75 / lanes; // 75% usable height
-    const topMargin = 12.5;
+    // Simplified lane system (8 lanes for professional layout)
+    const lanes = 8;
+    const laneHeight = 70 / lanes; // 70% usable height
+    const topMargin = 15;
     const lane = Math.floor(pseudoRandom * lanes);
     const laneCenter = topMargin + lane * laneHeight + laneHeight / 2;
-    const randomOffset = (pseudoRandom - 0.5) * 4; // Deterministic offset
+    const randomOffset = (pseudoRandom - 0.5) * 2; // Subtle offset for variation
     
     const messagePosition = {
-      top: Math.max(15, Math.min(85, laneCenter + randomOffset)),
+      top: Math.max(10, Math.min(80, laneCenter + randomOffset)),
       left: 105, // Start from right side
       spawnTime: now, // Store when message was created for position synchronization
       lane: lane
@@ -671,7 +672,7 @@ const MainChatInterface = () => {
     
     const now = Date.now();
     const messageAge = now - originalPosition.spawnTime;
-    const maxAge = 20000; // 20 seconds max age for faster cycling
+    const maxAge = 50000; // 50 seconds max age for professional chat experience
     
     // If message is too old, it should be off-screen
     if (messageAge > maxAge) {
@@ -679,11 +680,11 @@ const MainChatInterface = () => {
     }
     
     // Calculate progress through animation (0 = just spawned, 1 = fully traversed)
-    const animationDuration = 15000; // 15 seconds for faster, more dynamic flow
+    const animationDuration = 45000; // 45 seconds for smooth, professional flow
     const progress = Math.min(messageAge / animationDuration, 1);
     
     // Smooth easing for natural movement
-    const easeOut = (t) => 1 - Math.pow(1 - t, 2.5);
+    const easeOut = (t) => 1 - Math.pow(1 - t, 2.2); // Gentler easing for professional feel
     const easedProgress = easeOut(progress);
     
     // Calculate current position
@@ -699,7 +700,7 @@ const MainChatInterface = () => {
     };
   };
 
-  // Highway system server-synchronized positioning with 12-lane support
+  // Simplified server-synchronized positioning - purely deterministic based on message timestamp
   const getServerSyncedMessagePosition = (messageTimestamp, channelId) => {
     // Create deterministic position based on message timestamp and channel
     const messageTime = new Date(messageTimestamp).getTime();
@@ -715,33 +716,25 @@ const MainChatInterface = () => {
     const messageAge = now - messageTime;
     const progress = Math.min(Math.max(0, messageAge / REGULAR_MESSAGE_FLOW_DURATION), 1);
     
-    // Updated highway system (12 lanes)
-    const lanes = 12;
+    // Simplified lane system (8 lanes for cleaner layout)
+    const lanes = 8;
     const lane = Math.floor(pseudoRandom * lanes);
-    const usableHeight = 75;
-    const topMargin = 12.5;
-    const laneHeight = usableHeight / lanes; // ~6.25% per lane
+    const usableHeight = 70; // 70% usable height for cleaner margins
+    const topMargin = 15;
+    const laneHeight = usableHeight / lanes; // ~8.75% per lane
     const laneCenter = topMargin + (lane * laneHeight) + (laneHeight / 2);
     
-    // Estimate message dimensions for consistent server sync
-    const estimatedWidth = 20 + (pseudoRandom * 15); // 20-35% width
-    const estimatedHeight = 4 + (pseudoRandom * 3); // 4-7% height
+    // Reduced vertical offset for professional alignment
+    const verticalOffset = (pseudoRandom - 0.5) * 2; // ±1% for subtle variation
     
-    // Reduced vertical offset for highway discipline
-    const verticalOffset = (pseudoRandom - 0.5) * 4; // ±2% for lane discipline
-    
-    // Horizontal movement with improved easing and dynamic speed
-    const trafficDensity = Math.floor(pseudoRandom * 15); // Simulate traffic
-    const speedMultiplier = 1 + (trafficDensity / 10); // Dynamic speed based on traffic
-    const baseSpeed = 2.5 * speedMultiplier;
-    
-    const startX = 110;
-    const endX = -15;
-    const easeOut = (t) => 1 - Math.pow(1 - t, 2.5); // Adjusted easing for highway feel
+    // Smooth horizontal movement
+    const startX = 105;
+    const endX = -25;
+    const easeOut = (t) => 1 - Math.pow(1 - t, 2.2); // Professional easing
     const currentX = startX - (easeOut(progress) * (startX - endX));
     
-    // Calculate final position with highway bounds
-    const finalTop = Math.max(10, Math.min(85, laneCenter + verticalOffset));
+    // Calculate final position with professional bounds
+    const finalTop = Math.max(10, Math.min(80, laneCenter + verticalOffset));
     
     return {
       top: finalTop,
@@ -751,22 +744,8 @@ const MainChatInterface = () => {
       isExpired: progress >= 1,
       messageAge,
       calculatedAt: now,
-      // Highway-specific attributes
-      messageWidth: estimatedWidth,
-      messageHeight: estimatedHeight,
-      animationSpeed: baseSpeed,
-      laneCenter: laneCenter,
-      // Spacing reservation consistent with highway system
-      reservedSpace: {
-        topBound: finalTop - estimatedHeight / 2,
-        bottomBound: finalTop + estimatedHeight / 2,
-        leftBound: currentX - estimatedWidth / 2,
-        rightBound: currentX + estimatedWidth / 2,
-        width: estimatedWidth,
-        height: estimatedHeight
-      },
       createdAt: messageTime,
-      congestionLevel: trafficDensity
+      spawnTime: messageTime // Ensure spawn time is set for synchronization
     };
   };
 
@@ -944,17 +923,17 @@ const MainChatInterface = () => {
       return updateSynchronizedPositions(withPositions);
     });
 
-    // Update synchronized positions every 1 second for smoother movement
+    // Update synchronized positions every 3 seconds for smoother performance and battery life
     const syncInterval = setInterval(() => {
       setMessages((prevMessages) => {
         return updateSynchronizedPositions(prevMessages);
       });
-    }, 1000);
+    }, 3000);
 
-    // Clean up expired messages every 5 seconds
+    // Clean up expired messages every 10 seconds for better performance
     const cleanupInterval = setInterval(() => {
       const now = Date.now();
-      const maxAge = 20000; // 20 seconds max age for faster cycling
+      const maxAge = 50000; // 50 seconds max age for better user experience
       
       setMessages((prevMessages) => {
         return prevMessages.filter(msg => {
@@ -963,7 +942,7 @@ const MainChatInterface = () => {
           return age < maxAge;
         });
       });
-    }, 5000);
+    }, 10000);
 
     return () => {
       clearInterval(syncInterval);
